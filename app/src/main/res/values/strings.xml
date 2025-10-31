@@ -29,6 +29,12 @@
     <string name="remove_from_favorites">Remove from Favorites</string>
     <string name="get_directions">Get Directions</string>
     <string name="last_updated">Last Updated</string>
+    <string name="home_nearby_title">Nearby Carparks</string>
+    <string name="home_nearby_count">%1$d carparks found</string>
+    <string name="home_marker_snippet">%1$d lots available</string>
+    <string name="home_search_placeholder">Search for carparks or places</string>
+    <string name="home_search_result_carpark">Carpark</string>
+    <string name="home_search_result_place">Place</string>
 
     <!-- Search -->
     <string name="search_carparks">Search Carparks</string>

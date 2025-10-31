@@ -9,6 +9,7 @@ import com.sc2006.spaze.data.local.entity.FavoriteEntity
 import com.sc2006.spaze.data.local.entity.RecentSearchEntity
 import com.sc2006.spaze.data.remote.api.CarparkApiService
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,6 +32,18 @@ class CarparkRepository @Inject constructor(
     companion object {
         private const val TAG = "CarparkRepository"
     }
+
+    private val samplePlaces = listOf(
+        PlaceSuggestion("Marina Bay Sands", 1.2834, 103.8607),
+        PlaceSuggestion("Changi Airport", 1.3644, 103.9915),
+        PlaceSuggestion("VivoCity", 1.2644, 103.8223),
+        PlaceSuggestion("Jurong Point", 1.3391, 103.7061),
+        PlaceSuggestion("Causeway Point", 1.4353, 103.7853),
+        PlaceSuggestion("Bukit Panjang Plaza", 1.3787, 103.7639),
+        PlaceSuggestion("ION Orchard", 1.3040, 103.8325),
+        PlaceSuggestion("Bugis Junction", 1.3008, 103.8566),
+        PlaceSuggestion("Waterway Point", 1.4065, 103.9022)
+    )
 
     /**
      * Get all carparks
@@ -89,6 +102,31 @@ class CarparkRepository @Inject constructor(
      */
     fun searchCarparks(query: String): Flow<List<CarparkEntity>> {
         return carparkDao.searchCarparks(query)
+    }
+
+    fun searchSuggestions(query: String, limit: Int = 5): Flow<List<PlaceSuggestion>> {
+        if (query.isBlank()) return flowOf(emptyList())
+
+        return carparkDao.searchCarparks(query).map { carparkMatches ->
+            val carparkResults = carparkMatches.take(limit).map { carpark ->
+                PlaceSuggestion(
+                    name = carpark.address,
+                    latitude = carpark.latitude,
+                    longitude = carpark.longitude,
+                    carparkId = carpark.carparkID
+                )
+            }
+
+            val remainingSlots = limit - carparkResults.size
+            val sampleResults = if (remainingSlots > 0) {
+                samplePlaces.filter { it.name.contains(query, ignoreCase = true) }
+                    .take(remainingSlots)
+            } else {
+                emptyList()
+            }
+
+            (carparkResults + sampleResults).distinctBy { it.name }
+        }
     }
 
     /**
@@ -221,3 +259,10 @@ class CarparkRepository @Inject constructor(
         }
     }
 }
+
+data class PlaceSuggestion(
+    val name: String,
+    val latitude: Double,
+    val longitude: Double,
+    val carparkId: String? = null
+)

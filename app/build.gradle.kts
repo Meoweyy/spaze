@@ -23,6 +23,13 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        val mapsApiKey = (project.findProperty("GOOGLE_MAPS_API_KEY") as? String)
+            ?: System.getenv("GOOGLE_MAPS_API_KEY")
+            ?: "YOUR_DEBUG_MAPS_KEY"
+
+        buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"$mapsApiKey\"")
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
@@ -103,9 +110,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // Google Maps
-    //implementation("com.google.maps.android:maps-compose:4.3.0")
-    //implementation("com.google.android.gms:play-services-maps:18.2.0")
-    //implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("com.google.maps.android:maps-compose:4.3.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 
 
     // WorkManager

@@ -71,6 +71,26 @@ class BudgetRepository @Inject constructor(
     }
 
     /**
+     * Directly update current month's spending value
+     */
+    suspend fun updateCurrentSpending(userId: String, amount: Double): Result<Unit> {
+        return try {
+            val budget = getCurrentMonthBudget(userId)
+                ?: throw Exception("Budget not set for current month")
+
+            val updatedBudget = budget.copy(
+                currentMonthSpending = amount,
+                lastUpdated = System.currentTimeMillis()
+            )
+
+            budgetDao.updateBudget(updatedBudget)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Remove spending from current month
      */
     suspend fun removeSpending(userId: String, amount: Double): Result<Unit> {
