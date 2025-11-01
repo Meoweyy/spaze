@@ -12,11 +12,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * Authentication ViewModel
- * Manages user authentication state
- * Implements: Account and Authentication requirements
- */
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository
@@ -26,18 +21,22 @@ class AuthViewModel @Inject constructor(
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     init {
-        // ✅ launch a coroutine to call the suspend function
-        viewModelScope.launch {
-            checkAuthStatus()
-        }
+        checkAuthStatus()
     }
 
     /**
-     * Check if user is authenticated
+     * Check if user is authenticated (restore session)
      */
-    private suspend fun checkAuthStatus() {
-        val user = authRepository.getCurrentUser()
-        _uiState.update { it.copy(isAuthenticated = user != null, currentUser = user) }
+    private fun checkAuthStatus() {
+        viewModelScope.launch {
+            val user = authRepository.restoreSession()
+            _uiState.update {
+                it.copy(
+                    isAuthenticated = user != null,
+                    currentUser = user
+                )
+            }
+        }
     }
 
     /**
@@ -95,67 +94,45 @@ class AuthViewModel @Inject constructor(
     }
 
     /**
-     * Sign in with Google
-     */
-    fun signInWithGoogle(idToken: String) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-
-            val result = authRepository.signInWithGoogle(idToken)
-            result.fold(
-                onSuccess = { user ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isAuthenticated = true,
-                            currentUser = user
-                        )
-                    }
-                },
-                onFailure = { error ->
-                    _uiState.update {
-                        it.copy(isLoading = false, error = error.message)
-                    }
-                }
-            )
-        }
-    }
-
-    /**
-     * Reset password
-     */
-    fun resetPassword(email: String) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-
-            val result = authRepository.resetPassword(email)
-            result.fold(
-                onSuccess = {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            passwordResetEmailSent = true
-                        )
-                    }
-                },
-                onFailure = { error ->
-                    _uiState.update {
-                        it.copy(isLoading = false, error = error.message)
-                    }
-                }
-            )
-        }
-    }
-
-    /**
      * Sign out
      */
     fun signOut() {
         viewModelScope.launch {
             authRepository.signOut()
             _uiState.update {
-                it.copy(isAuthenticated = false, currentUser = null)
+                it.copy(
+                    isAuthenticated = false,
+                    currentUser = null
+                )
             }
+        }
+    }
+
+    /**
+     * Change password
+     */
+    fun changePassword(oldPassword: String, newPassword: String) {
+        viewModelScope.launch {
+            val userId = _uiState.value.currentUser?.userID ?: return@launch
+
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            val result = authRepository.changePassword(userId, oldPassword, newPassword)
+            result.fold(
+                onSuccess = {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            passwordChangeSuccess = true
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(isLoading = false, error = error.message)
+                    }
+                }
+            )
         }
     }
 }
@@ -165,5 +142,6 @@ data class AuthUiState(
     val isAuthenticated: Boolean = false,
     val currentUser: UserEntity? = null,
     val error: String? = null,
-    val passwordResetEmailSent: Boolean = false
+    val passwordResetEmailSent: Boolean = false,
+    val passwordChangeSuccess: Boolean = false
 )

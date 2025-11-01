@@ -10,11 +10,11 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MapLocationDao {
 
-    @Query("SELECT * FROM map_locations WHERE carparkID = :carparkId")
-    suspend fun getMapLocationById(carparkId: String): MapLocationEntity?
+    @Query("SELECT * FROM map_locations WHERE carparkNumber = :carparkNumber")
+    suspend fun getMapLocationById(carparkNumber: String): MapLocationEntity?
 
-    @Query("SELECT * FROM map_locations WHERE carparkID = :carparkId")
-    fun getMapLocationByIdFlow(carparkId: String): Flow<MapLocationEntity?>
+    @Query("SELECT * FROM map_locations WHERE carparkNumber = :carparkNumber")
+    fun getMapLocationByIdFlow(carparkNumber: String): Flow<MapLocationEntity?>
 
     @Query("SELECT * FROM map_locations WHERE isRouteActive = 1 LIMIT 1")
     suspend fun getActiveRoute(): MapLocationEntity?
@@ -37,8 +37,8 @@ interface MapLocationDao {
     @Query("UPDATE map_locations SET isRouteActive = 0")
     suspend fun deactivateAllRoutes()
 
-    @Query("UPDATE map_locations SET isRouteActive = 1 WHERE carparkID = :carparkId")
-    suspend fun setActiveRoute(carparkId: String)
+    @Query("UPDATE map_locations SET isRouteActive = 1 WHERE carparkNumber = :carparkNumber")
+    suspend fun setActiveRoute(carparkNumber: String)
 
     @Query("DELETE FROM map_locations")
     suspend fun deleteAllMapLocations()

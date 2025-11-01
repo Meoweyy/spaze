@@ -1,4 +1,3 @@
-// app/src/main/java/com/sc2006/spaze/di/NetworkModule.kt
 package com.sc2006.spaze.di
 
 import com.sc2006.spaze.data.remote.api.CarparkApiService
@@ -7,28 +6,38 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL = "https://example.com/" // TODO replace with real endpoint
-
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient =
-        OkHttpClient.Builder().build()
+    fun provideOkHttpClient(): OkHttpClient {
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+
+        return OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor(logging)
+            .build()
+    }
 
     @Provides
     @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit =
         Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(CarparkApiService.BASE_URL)
             .client(client)
-            .addConverterFactory(MoshiConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create())
             .build()
 
     @Provides

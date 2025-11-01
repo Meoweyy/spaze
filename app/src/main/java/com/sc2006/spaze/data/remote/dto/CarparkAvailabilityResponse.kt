@@ -3,59 +3,45 @@ package com.sc2006.spaze.data.remote.dto
 import com.google.gson.annotations.SerializedName
 
 /**
- * Data Transfer Objects for LTA DataMall Carpark Availability API
- * API Endpoint: https://datamall2.mytransport.sg/ltaodataservice/CarParkAvailabilityv2
+ * Response from Data.gov.sg Carpark Availability API
+ * https://data.gov.sg/api/action/datastore_search?resource_id=carpark-availability
  */
+data class DataGovCarparkResponse(
+    @SerializedName("api_info")
+    val apiInfo: ApiInfo?,
 
-data class CarparkAvailabilityResponse(
-    @SerializedName("odata.metadata")
-    val metadata: String?,
-    @SerializedName("value")
-    val carparks: List<CarparkAvailabilityDto>
+    @SerializedName("items")
+    val items: List<CarparkAvailabilityItem>
 )
 
-data class CarparkAvailabilityDto(
-    @SerializedName("CarParkID")
-    val carparkID: String,
-    @SerializedName("Area")
-    val area: String,
-    @SerializedName("Development")
-    val development: String,
-    @SerializedName("Location")
-    val location: String,
-    @SerializedName("AvailableLots")
-    val availableLots: Int,
-    @SerializedName("LotType")
-    val lotType: String,
-    @SerializedName("Agency")
-    val agency: String
+data class ApiInfo(
+    @SerializedName("status")
+    val status: String  // "healthy"
 )
 
-/**
- * Alternative: URA Carpark Availability Response
- * API: https://www.ura.gov.sg/maps/api/
- */
-data class UraCarparkResponse(
-    @SerializedName("Status")
-    val status: String,
-    @SerializedName("Message")
-    val message: String,
-    @SerializedName("Result")
-    val result: List<UraCarparkDto>
+data class CarparkAvailabilityItem(
+    @SerializedName("timestamp")
+    val timestamp: String,  // "2025-08-07T09:01:00+08:00"
+
+    @SerializedName("carpark_data")
+    val carparkData: List<CarparkData>
 )
 
-data class UraCarparkDto(
-    @SerializedName("carparkNo")
-    val carparkNo: String,
-    @SerializedName("lotsAvailable")
-    val lotsAvailable: String,
-    @SerializedName("lotType")
-    val lotType: String,
-    @SerializedName("geometries")
-    val geometries: List<UraGeometry>
+data class CarparkData(
+    @SerializedName("carpark_number")
+    val carparkNumber: String,  // "HG50", "ACB", etc.
+
+    @SerializedName("carpark_info")
+    val carparkInfo: List<CarparkLotInfo>
 )
 
-data class UraGeometry(
-    @SerializedName("coordinates")
-    val coordinates: String
+data class CarparkLotInfo(
+    @SerializedName("total_lots")
+    val totalLots: String,  // "500"
+
+    @SerializedName("lot_type")
+    val lotType: String,    // "C", "H", "Y", "S"
+
+    @SerializedName("lots_available")
+    val lotsAvailable: String  // "123"
 )

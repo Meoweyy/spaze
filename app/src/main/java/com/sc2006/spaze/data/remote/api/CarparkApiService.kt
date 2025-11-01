@@ -1,45 +1,22 @@
 package com.sc2006.spaze.data.remote.api
 
-import com.sc2006.spaze.data.remote.dto.CarparkAvailabilityResponse
-import com.sc2006.spaze.data.remote.dto.UraCarparkResponse
+import com.sc2006.spaze.data.remote.dto.DataGovCarparkResponse
 import retrofit2.Response
 import retrofit2.http.GET
-import retrofit2.http.Header
-import retrofit2.http.Query
 
 /**
- * Retrofit API Service for Carpark Data
- * Uses LTA DataMall API for carpark availability
+ * API Service for Data.gov.sg Carpark Availability
  */
 interface CarparkApiService {
 
     /**
-     * Get carpark availability from LTA DataMall
-     * Requires API key in AccountKey header
+     * Get real-time carpark availability from Data.gov.sg
+     * Resource: carpark-availability
      */
-    @GET("ltaodataservice/CarParkAvailabilityv2")
-    suspend fun getCarparkAvailability(
-        @Header("AccountKey") apiKey: String,
-        @Query("\$skip") skip: Int = 0
-    ): Response<CarparkAvailabilityResponse>
+    @GET("v1/transport/carpark-availability")
+    suspend fun getCarparkAvailability(): Response<DataGovCarparkResponse>
 
     companion object {
-        const val LTA_BASE_URL = "http://datamall2.mytransport.sg/"
-    }
-}
-
-/**
- * URA Carpark API Service (Alternative source)
- */
-interface UraCarparkApiService {
-
-    @GET("CarParkDetails")
-    suspend fun getUraCarparkAvailability(
-        @Header("AccessKey") accessKey: String,
-        @Header("Token") token: String
-    ): Response<UraCarparkResponse>
-
-    companion object {
-        const val URA_BASE_URL = "https://www.ura.gov.sg/uraDataService/invokeUraDS"
+        const val BASE_URL = "https://data.gov.sg/"
     }
 }

@@ -11,7 +11,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "map_locations")
 data class MapLocationEntity(
     @PrimaryKey
-    val carparkID: String,
+    val carparkNumber: String,  // ← Changed from carparkID to carparkNumber
 
     // Location coordinates
     val latitude: Double,
@@ -94,7 +94,7 @@ data class MapLocationEntity(
          */
         fun fromCarpark(carpark: CarparkEntity): MapLocationEntity {
             return MapLocationEntity(
-                carparkID = carpark.carparkID,
+                carparkNumber = carpark.carparkNumber,  // ← Changed from carparkID
                 latitude = carpark.latitude,
                 longitude = carpark.longitude,
                 address = carpark.address

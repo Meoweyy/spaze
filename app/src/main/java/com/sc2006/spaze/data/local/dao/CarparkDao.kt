@@ -4,29 +4,60 @@ import androidx.room.*
 import com.sc2006.spaze.data.local.entity.CarparkEntity
 import kotlinx.coroutines.flow.Flow
 
-/**
- * Data Access Object for Carpark operations
- */
 @Dao
 interface CarparkDao {
+
+    // ═══════════════════════════════════════════════════
+    // READ OPERATIONS
+    // ═══════════════════════════════════════════════════
 
     @Query("SELECT * FROM carparks")
     fun getAllCarparks(): Flow<List<CarparkEntity>>
 
-    @Query("SELECT * FROM carparks WHERE carparkID = :carparkId")
-    suspend fun getCarparkById(carparkId: String): CarparkEntity?
+    @Query("SELECT * FROM carparks WHERE carparkNumber = :carparkNumber")
+    suspend fun getCarparkById(carparkNumber: String): CarparkEntity?
 
-    @Query("SELECT * FROM carparks WHERE carparkID = :carparkId")
-    fun getCarparkByIdFlow(carparkId: String): Flow<CarparkEntity?>
+    @Query("SELECT * FROM carparks WHERE carparkNumber = :carparkNumber")
+    fun getCarparkByIdFlow(carparkNumber: String): Flow<CarparkEntity?>
 
     @Query("SELECT * FROM carparks WHERE isFavorite = 1")
     fun getFavoriteCarparks(): Flow<List<CarparkEntity>>
 
-    @Query("SELECT * FROM carparks WHERE availableLots >= :minLots")
+    @Query("SELECT * FROM carparks WHERE availableLotsC >= :minLots")
     fun getAvailableCarparks(minLots: Int): Flow<List<CarparkEntity>>
 
     @Query("SELECT * FROM carparks WHERE lastViewed IS NOT NULL ORDER BY lastViewed DESC LIMIT :limit")
     fun getRecentlyViewedCarparks(limit: Int = 10): Flow<List<CarparkEntity>>
+
+    @Query("SELECT COUNT(*) FROM carparks")
+    suspend fun getCarparkCount(): Int
+
+    // ═══════════════════════════════════════════════════
+    // SEARCH
+    // ═══════════════════════════════════════════════════
+
+    @Query("""
+        SELECT * FROM carparks 
+        WHERE address LIKE '%' || :query || '%' 
+        OR carparkNumber LIKE '%' || :query || '%'
+    """)
+    fun searchCarparks(query: String): Flow<List<CarparkEntity>>
+
+    @Query("""
+        SELECT * FROM carparks
+        WHERE latitude BETWEEN :minLat AND :maxLat
+        AND longitude BETWEEN :minLng AND :maxLng
+    """)
+    fun getCarparksInBounds(
+        minLat: Double,
+        maxLat: Double,
+        minLng: Double,
+        maxLng: Double
+    ): Flow<List<CarparkEntity>>
+
+    // ═══════════════════════════════════════════════════
+    // WRITE OPERATIONS
+    // ═══════════════════════════════════════════════════
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCarpark(carpark: CarparkEntity)
@@ -40,39 +71,48 @@ interface CarparkDao {
     @Delete
     suspend fun deleteCarpark(carpark: CarparkEntity)
 
-    @Query("UPDATE carparks SET isFavorite = :isFavorite WHERE carparkID = :carparkId")
-    suspend fun updateFavoriteStatus(carparkId: String, isFavorite: Boolean)
+    // ═══════════════════════════════════════════════════
+    // PARTIAL UPDATES
+    // ═══════════════════════════════════════════════════
 
-    @Query("UPDATE carparks SET lastViewed = :timestamp WHERE carparkID = :carparkId")
-    suspend fun updateLastViewed(carparkId: String, timestamp: Long)
+    @Query("UPDATE carparks SET isFavorite = :isFavorite WHERE carparkNumber = :carparkNumber")
+    suspend fun updateFavoriteStatus(carparkNumber: String, isFavorite: Boolean)
 
-    @Query("UPDATE carparks SET availableLots = :availableLots, lastUpdated = :timestamp WHERE carparkID = :carparkId")
-    suspend fun updateAvailability(carparkId: String, availableLots: Int, timestamp: Long)
+    @Query("UPDATE carparks SET lastViewed = :timestamp WHERE carparkNumber = :carparkNumber")
+    suspend fun updateLastViewed(carparkNumber: String, timestamp: Long)
+
+    /**
+     * Update live availability data (from API)
+     */
+    @Query("""
+        UPDATE carparks 
+        SET totalLotsC = :totalLotsC,
+            availableLotsC = :availableLotsC,
+            totalLotsH = :totalLotsH,
+            availableLotsH = :availableLotsH,
+            totalLotsY = :totalLotsY,
+            availableLotsY = :availableLotsY,
+            totalLotsS = :totalLotsS,
+            availableLotsS = :availableLotsS,
+            lastUpdated = :lastUpdated
+        WHERE carparkNumber = :carparkNumber
+    """)
+    suspend fun updateAvailability(
+        carparkNumber: String,
+        totalLotsC: Int,
+        availableLotsC: Int,
+        totalLotsH: Int,
+        availableLotsH: Int,
+        totalLotsY: Int,
+        availableLotsY: Int,
+        totalLotsS: Int,
+        availableLotsS: Int,
+        lastUpdated: Long
+    )
 
     @Query("DELETE FROM carparks")
     suspend fun deleteAllCarparks()
 
     @Query("DELETE FROM carparks WHERE lastUpdated < :timestamp")
     suspend fun deleteStaleCarparks(timestamp: Long)
-
-    /**
-     * Search carparks by location or address
-     */
-    @Query("SELECT * FROM carparks WHERE location LIKE '%' || :query || '%' OR address LIKE '%' || :query || '%'")
-    fun searchCarparks(query: String): Flow<List<CarparkEntity>>
-
-    /**
-     * Get carparks within a bounding box
-     */
-    @Query("""
-        SELECT * FROM carparks
-        WHERE latitude BETWEEN :minLat AND :maxLat
-        AND longitude BETWEEN :minLng AND :maxLng
-    """)
-    fun getCarparksInBounds(
-        minLat: Double,
-        maxLat: Double,
-        minLng: Double,
-        maxLng: Double
-    ): Flow<List<CarparkEntity>>
 }

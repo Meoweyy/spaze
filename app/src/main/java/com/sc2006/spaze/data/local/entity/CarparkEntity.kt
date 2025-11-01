@@ -4,61 +4,91 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Carpark Entity - Represents a carpark with availability information
- * Maps to the Carpark class in the class diagram
+ * Carpark Entity - Combines static CSV data + live API data
  */
 @Entity(tableName = "carparks")
 data class CarparkEntity(
     @PrimaryKey
-    val carparkID: String,
-    val location: String,
-    val address: String,
-    val latitude: Double,
-    val longitude: Double,
-    val totalLots: Int,
-    val availableLots: Int,
+    val carparkNumber: String,  // From CSV - "HG50", "ACB", etc.
 
-    // Additional fields for enhanced functionality
-    val lotTypes: String = "", // JSON string: {"car": 100, "motorcycle": 20, "ev": 5, "accessible": 3}
-    val pricingInfo: String = "", // JSON string with pricing structure
-    val operatingHours: String = "24/7",
-    val lastUpdated: Long = System.currentTimeMillis(),
-    val dataSource: String = "LTA DataMall", // API source
+    // ═══════════════════════════════════════════════════
+    // STATIC DATA (from CSV - never changes)
+    // ═══════════════════════════════════════════════════
+    val address: String,                    // "BLK 270/271 BUKIT BATOK EAST AVE 4"
+    val xCoord: Double,                     // 21414.6614 (SVY21 format)
+    val yCoord: Double,                     // 36974.9264 (SVY21 format)
+    val latitude: Double,                   // 1.349319 (WGS84 - converted from SVY21)
+    val longitude: Double,                  // 103.753213 (WGS84 - converted from SVY21)
+    val carParkType: String,                // "SURFACE CAR PARK", "MULTI-STOREY CAR PARK", etc.
+    val typeOfParkingSystem: String,        // "ELECTRONIC PARKING", "COUPON PARKING"
+    val shortTermParking: String,           // "WHOLE DAY", "NO", "7AM-7PM"
+    val freeParking: String,                // "SUN & PH FR 7AM-10.30PM", "NO"
+    val nightParking: String,               // "YES", "NO"
+    val carParkDecks: Int,                  // 0 for surface, >0 for multi-storey
+    val gantryHeight: Double,               // 2.15, 0.0 for surface
+    val carParkBasement: String,            // "Y", "N"
 
-    // Cached calculated values
-    val distanceFromUser: Float? = null, // in meters
-    val estimatedWalkTime: Int? = null, // in minutes
-    val estimatedDriveTime: Int? = null, // in minutes
+    // ═══════════════════════════════════════════════════
+    // LIVE DATA (from API - updates frequently)
+    // ═══════════════════════════════════════════════════
+    val totalLotsC: Int = 0,                // Total car lots (Type C)
+    val availableLotsC: Int = 0,            // Available car lots
+    val totalLotsH: Int = 0,                // Total heavy vehicle lots (Type H)
+    val availableLotsH: Int = 0,            // Available heavy vehicle lots
+    val totalLotsY: Int = 0,                // Total motorcycle lots (Type Y)
+    val availableLotsY: Int = 0,            // Available motorcycle lots
+    val totalLotsS: Int = 0,                // Total motorcycle with sidecar lots (Type S)
+    val availableLotsS: Int = 0,            // Available motorcycle with sidecar lots
 
-    // Metadata
-    val isFavorite: Boolean = false,
-    val lastViewed: Long? = null
+    val lastUpdated: Long = 0,              // Timestamp of last API update
+
+    // ═══════════════════════════════════════════════════
+    // COMPUTED/CACHED DATA
+    // ═══════════════════════════════════════════════════
+    val distanceFromUser: Float? = null,    // Distance in meters (calculated)
+    val isFavorite: Boolean = false,        // User favorited this carpark
+    val lastViewed: Long? = null            // When user last viewed details
 ) {
+
     /**
-     * Get availability percentage
+     * Get total available lots across all types
      */
-    fun getAvailabilityPercentage(): Float {
-        return if (totalLots > 0) {
-            (availableLots.toFloat() / totalLots.toFloat()) * 100f
+    fun getTotalAvailableLots(): Int {
+        return availableLotsC + availableLotsH + availableLotsY + availableLotsS
+    }
+
+    /**
+     * Get total lots across all types
+     */
+    fun getTotalLots(): Int {
+        return totalLotsC + totalLotsH + totalLotsY + totalLotsS
+    }
+
+    /**
+     * Get availability percentage for cars (Type C)
+     */
+    fun getCarAvailabilityPercentage(): Float {
+        return if (totalLotsC > 0) {
+            (availableLotsC.toFloat() / totalLotsC.toFloat()) * 100f
         } else {
             0f
         }
     }
 
     /**
-     * Check if carpark has available lots
+     * Check if carpark has available car lots
      */
-    fun hasAvailability(minLots: Int = 1): Boolean {
-        return availableLots >= minLots
+    fun hasCarLotsAvailable(minLots: Int = 1): Boolean {
+        return availableLotsC >= minLots
     }
 
     /**
-     * Get availability status
+     * Get availability status for cars
      */
     fun getAvailabilityStatus(): AvailabilityStatus {
-        val percentage = getAvailabilityPercentage()
+        val percentage = getCarAvailabilityPercentage()
         return when {
-            availableLots == 0 -> AvailabilityStatus.FULL
+            availableLotsC == 0 -> AvailabilityStatus.FULL
             percentage < 10 -> AvailabilityStatus.ALMOST_FULL
             percentage < 30 -> AvailabilityStatus.LIMITED
             else -> AvailabilityStatus.AVAILABLE
@@ -69,8 +99,23 @@ data class CarparkEntity(
      * Check if data is stale (older than 5 minutes)
      */
     fun isDataStale(): Boolean {
+        if (lastUpdated == 0L) return true
         val fiveMinutesInMillis = 5 * 60 * 1000
         return System.currentTimeMillis() - lastUpdated > fiveMinutesInMillis
+    }
+
+    /**
+     * Has electronic parking system
+     */
+    fun hasElectronicParking(): Boolean {
+        return typeOfParkingSystem.contains("ELECTRONIC", ignoreCase = true)
+    }
+
+    /**
+     * Has free parking periods
+     */
+    fun hasFreeParkingPeriods(): Boolean {
+        return freeParking.uppercase() != "NO"
     }
 
     enum class AvailabilityStatus {
@@ -78,30 +123,5 @@ data class CarparkEntity(
         LIMITED,
         ALMOST_FULL,
         FULL
-    }
-
-    companion object {
-        /**
-         * Create a carpark entity from API response
-         */
-        fun fromApiResponse(
-            id: String,
-            location: String,
-            address: String,
-            lat: Double,
-            lng: Double,
-            total: Int,
-            available: Int
-        ): CarparkEntity {
-            return CarparkEntity(
-                carparkID = id,
-                location = location,
-                address = address,
-                latitude = lat,
-                longitude = lng,
-                totalLots = total,
-                availableLots = available
-            )
-        }
     }
 }
