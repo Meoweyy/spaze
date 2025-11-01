@@ -24,6 +24,8 @@ data class CarparkEntity(
     val operatingHours: String = "24/7",
     val lastUpdated: Long = System.currentTimeMillis(),
     val dataSource: String = "LTA DataMall", // API source
+    val priceTier: String = PriceTier.UNKNOWN.name,
+    val baseHourlyRate: Double? = null,
 
     // Cached calculated values
     val distanceFromUser: Float? = null, // in meters
@@ -78,6 +80,13 @@ data class CarparkEntity(
         LIMITED,
         ALMOST_FULL,
         FULL
+    }
+
+    enum class PriceTier {
+        BUDGET,
+        STANDARD,
+        PREMIUM,
+        UNKNOWN
     }
 
     companion object {

@@ -1,18 +1,45 @@
 package com.sc2006.spaze.data.repository
 
 import android.util.Log
+import com.sc2006.spaze.data.local.entity.CarparkEntity
+import com.sc2006.spaze.data.local.entity.CarparkEntity.PriceTier
+import com.sc2006.spaze.data.local.seed.CarparkMetadataProvider
+import com.sc2006.spaze.data.api.RetrofitClient
 import com.sc2006.spaze.data.local.dao.CarparkDao
 import com.sc2006.spaze.data.local.dao.FavoriteDao
 import com.sc2006.spaze.data.local.dao.RecentSearchDao
-import com.sc2006.spaze.data.local.entity.CarparkEntity
 import com.sc2006.spaze.data.local.entity.FavoriteEntity
 import com.sc2006.spaze.data.local.entity.RecentSearchEntity
-import com.sc2006.spaze.data.remote.api.CarparkApiService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+data class CarparkLotAvailability(
+    val lotType: String,
+    val totalLots: Int,
+    val availableLots: Int
+)
+
+data class CarparkDetail(
+    val carparkNumber: String,
+    val name: String,
+    val address: String,
+    val latitude: Double?,
+    val longitude: Double?,
+    val lotAvailability: List<CarparkLotAvailability>,
+    val totalLots: Int,
+    val availableLots: Int,
+    val lastUpdated: Long,
+    val lastUpdatedRaw: String?,
+    val priceTier: PriceTier,
+    val baseHourlyRate: Double?
+)
 
 /**
  * Carpark Repository
@@ -23,27 +50,13 @@ import javax.inject.Singleton
 class CarparkRepository @Inject constructor(
     private val carparkDao: CarparkDao,
     private val favoriteDao: FavoriteDao,
-    private val recentSearchDao: RecentSearchDao,
-    private val carparkApi: CarparkApiService,
-    // Note: LTA API key should be injected via BuildConfig or secrets
-    private val ltaApiKey: String = "YOUR_LTA_API_KEY"
+    private val recentSearchDao: RecentSearchDao
 ) {
 
     companion object {
         private const val TAG = "CarparkRepository"
+        private val UPDATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME
     }
-
-    private val samplePlaces = listOf(
-        PlaceSuggestion("Marina Bay Sands", 1.2834, 103.8607),
-        PlaceSuggestion("Changi Airport", 1.3644, 103.9915),
-        PlaceSuggestion("VivoCity", 1.2644, 103.8223),
-        PlaceSuggestion("Jurong Point", 1.3391, 103.7061),
-        PlaceSuggestion("Causeway Point", 1.4353, 103.7853),
-        PlaceSuggestion("Bukit Panjang Plaza", 1.3787, 103.7639),
-        PlaceSuggestion("ION Orchard", 1.3040, 103.8325),
-        PlaceSuggestion("Bugis Junction", 1.3008, 103.8566),
-        PlaceSuggestion("Waterway Point", 1.4065, 103.9022)
-    )
 
     /**
      * Get all carparks
@@ -63,38 +76,194 @@ class CarparkRepository @Inject constructor(
      * Fetch and refresh carpark availability from API
      * Implements: Live Availability & Data Refresh
      */
-    suspend fun refreshCarparkAvailability(): Result<Unit> {
-        return try {
-            val response = carparkApi.getCarparkAvailability(ltaApiKey)
+    suspend fun refreshCarparkAvailability(): Result<Int> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = RetrofitClient.instance.getCarparkAvailability().execute()
 
-            if (response.isSuccessful) {
-                val carparks = response.body()?.carparks ?: emptyList()
+                if (response.isSuccessful) {
+                    val carparks = response.body()?.items?.firstOrNull()?.carpark_data ?: emptyList()
+                    val carparkEntities = mutableListOf<CarparkEntity>()
 
-                // Convert API response to entities and save to database
-                val carparkEntities = carparks.map { dto ->
-                    CarparkEntity(
-                        carparkID = dto.carparkID,
-                        location = dto.location,
-                        address = dto.development,
-                        latitude = parseLatitude(dto.location),
-                        longitude = parseLongitude(dto.location),
-                        totalLots = 0, // Not provided by API, needs separate source
-                        availableLots = dto.availableLots,
-                        lotTypes = dto.lotType,
-                        dataSource = dto.agency,
-                        lastUpdated = System.currentTimeMillis()
-                    )
+                    for (info in carparks) {
+                        val totalLots = info.carpark_info.sumOf { it.total_lots.toIntOrNull() ?: 0 }
+                        val availableLots = info.carpark_info.sumOf { it.lots_available.toIntOrNull() ?: 0 }
+                        val metadata = CarparkMetadataProvider.getMetadata(info.carpark_number)
+
+                        val existing = carparkDao.getCarparkById(info.carpark_number)
+                        val entity = if (existing != null) {
+                            existing.copy(
+                                location = metadata?.name ?: existing.location,
+                                totalLots = metadata?.totalLots ?: if (totalLots > 0) totalLots else existing.totalLots,
+                                availableLots = availableLots,
+                                latitude = metadata?.latitude ?: existing.latitude,
+                                longitude = metadata?.longitude ?: existing.longitude,
+                                address = metadata?.address ?: existing.address,
+                                dataSource = "data.gov.sg",
+                                priceTier = metadata?.priceTier?.name ?: existing.priceTier,
+                                baseHourlyRate = metadata?.baseHourlyRate ?: existing.baseHourlyRate,
+                                lastUpdated = System.currentTimeMillis()
+                            )
+                        } else {
+                            CarparkEntity(
+                                carparkID = info.carpark_number,
+                                location = metadata?.name ?: info.carpark_number,
+                                address = metadata?.address ?: "Unknown address",
+                                latitude = metadata?.latitude
+                                    ?: CarparkMetadataProvider.allMetadata()
+                                        .firstOrNull { it.carparkNumber == info.carpark_number }?.latitude
+                                    ?: 1.3521,
+                                longitude = metadata?.longitude
+                                    ?: CarparkMetadataProvider.allMetadata()
+                                        .firstOrNull { it.carparkNumber == info.carpark_number }?.longitude
+                                    ?: 103.8198,
+                                totalLots = metadata?.totalLots ?: totalLots,
+                                availableLots = availableLots,
+                                dataSource = "data.gov.sg",
+                                priceTier = metadata?.priceTier?.name ?: PriceTier.UNKNOWN.name,
+                                baseHourlyRate = metadata?.baseHourlyRate,
+                                lastUpdated = System.currentTimeMillis()
+                            )
+                        }
+                        carparkEntities.add(entity)
+                    }
+
+                    carparkDao.insertCarparks(carparkEntities)
+                    Log.d(TAG, "Fetched ${carparks.size} carparks from LTA API")
+                    Result.success(carparks.size)
+                } else {
+                    Log.e(TAG, "API Error: ${response.code()} ${response.message()}")
+                    Result.failure(Exception("API Error: ${response.code()}"))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh carpark availability", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun seedSampleCarparks() {
+        val samples = CarparkMetadataProvider.allMetadata().map { metadata ->
+            CarparkEntity(
+                carparkID = metadata.carparkNumber,
+                location = metadata.name,
+                address = metadata.address,
+                latitude = metadata.latitude,
+                longitude = metadata.longitude,
+                totalLots = metadata.totalLots,
+                availableLots = (metadata.totalLots * 0.6).toInt(),
+                dataSource = "metadata",
+                priceTier = metadata.priceTier.name,
+                baseHourlyRate = metadata.baseHourlyRate
+            )
+        }
+        carparkDao.insertCarparks(samples)
+    }
+
+    suspend fun getCarparkDetail(carparkNumber: String): Result<CarparkDetail> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = RetrofitClient.instance.getCarparkAvailability().execute()
+                val metadata = CarparkMetadataProvider.getMetadata(carparkNumber)
+                val cachedEntity = carparkDao.getCarparkById(carparkNumber)
+
+                if (response.isSuccessful) {
+                    val carpark = response.body()?.items
+                        ?.firstOrNull()
+                        ?.carpark_data
+                        ?.firstOrNull { it.carpark_number.equals(carparkNumber, ignoreCase = true) }
+
+                    if (carpark != null) {
+                        val lotAvailability = carpark.carpark_info.map { info ->
+                            CarparkLotAvailability(
+                                lotType = info.lot_type,
+                                totalLots = parseInt(info.total_lots),
+                                availableLots = parseInt(info.lots_available)
+                            )
+                        }
+                        val totalLots = lotAvailability.sumOf { it.totalLots }
+                            .takeIf { it > 0 }
+                            ?: metadata?.totalLots
+                            ?: cachedEntity?.totalLots
+                            ?: 0
+                        val availableLots = lotAvailability.sumOf { it.availableLots }
+                            .takeIf { it > 0 }
+                            ?: cachedEntity?.availableLots
+                            ?: 0
+
+                        val detail = CarparkDetail(
+                            carparkNumber = carpark.carpark_number,
+                            name = metadata?.name ?: cachedEntity?.location ?: carpark.carpark_number,
+                            address = metadata?.address ?: cachedEntity?.address ?: "Unknown address",
+                            latitude = metadata?.latitude ?: cachedEntity?.latitude,
+                            longitude = metadata?.longitude ?: cachedEntity?.longitude,
+                            lotAvailability = lotAvailability,
+                            totalLots = totalLots,
+                            availableLots = availableLots,
+                            lastUpdated = parseUpdateMillis(carpark.update_datetime),
+                            lastUpdatedRaw = carpark.update_datetime,
+                            priceTier = metadata?.priceTier ?: cachedEntity?.priceTier?.let { PriceTier.valueOf(it) } ?: PriceTier.UNKNOWN,
+                            baseHourlyRate = metadata?.baseHourlyRate ?: cachedEntity?.baseHourlyRate
+                        )
+                        return@withContext Result.success(detail)
+                    }
                 }
 
-                carparkDao.insertCarparks(carparkEntities)
-                Result.success(Unit)
-            } else {
-                Result.failure(Exception("API Error: ${response.code()}"))
+                // Fallback to cached entity if API call failed or carpark missing
+                if (cachedEntity != null) {
+                    val detail = CarparkDetail(
+                        carparkNumber = carparkNumber,
+                        name = cachedEntity.location,
+                        address = cachedEntity.address,
+                        latitude = cachedEntity.latitude,
+                        longitude = cachedEntity.longitude,
+                        lotAvailability = emptyList(),
+                        totalLots = cachedEntity.totalLots,
+                        availableLots = cachedEntity.availableLots,
+                        lastUpdated = cachedEntity.lastUpdated,
+                        lastUpdatedRaw = null,
+                        priceTier = runCatching { PriceTier.valueOf(cachedEntity.priceTier) }.getOrElse { PriceTier.UNKNOWN },
+                        baseHourlyRate = cachedEntity.baseHourlyRate
+                    )
+                    Result.success(detail)
+                } else {
+                    Result.failure(Exception("Carpark $carparkNumber not found"))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch carpark detail", e)
+                val cachedEntity = carparkDao.getCarparkById(carparkNumber)
+                if (cachedEntity != null) {
+                    Result.success(
+                        CarparkDetail(
+                            carparkNumber = carparkNumber,
+                            name = cachedEntity.location,
+                            address = cachedEntity.address,
+                            latitude = cachedEntity.latitude,
+                            longitude = cachedEntity.longitude,
+                            lotAvailability = emptyList(),
+                            totalLots = cachedEntity.totalLots,
+                            availableLots = cachedEntity.availableLots,
+                            lastUpdated = cachedEntity.lastUpdated,
+                            lastUpdatedRaw = null,
+                            priceTier = runCatching { PriceTier.valueOf(cachedEntity.priceTier) }.getOrElse { PriceTier.UNKNOWN },
+                            baseHourlyRate = cachedEntity.baseHourlyRate
+                        )
+                    )
+                } else {
+                    Result.failure(e)
+                }
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to refresh carpark availability", e)
-            Result.failure(e)
         }
+    }
+
+    private fun parseInt(value: String): Int = value.toIntOrNull() ?: 0
+
+    private fun parseUpdateMillis(raw: String?): Long {
+        if (raw.isNullOrBlank()) return System.currentTimeMillis()
+        return runCatching {
+            val localDateTime = LocalDateTime.parse(raw, UPDATE_FORMATTER)
+            localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }.getOrElse { System.currentTimeMillis() }
     }
 
     /**
@@ -102,31 +271,6 @@ class CarparkRepository @Inject constructor(
      */
     fun searchCarparks(query: String): Flow<List<CarparkEntity>> {
         return carparkDao.searchCarparks(query)
-    }
-
-    fun searchSuggestions(query: String, limit: Int = 5): Flow<List<PlaceSuggestion>> {
-        if (query.isBlank()) return flowOf(emptyList())
-
-        return carparkDao.searchCarparks(query).map { carparkMatches ->
-            val carparkResults = carparkMatches.take(limit).map { carpark ->
-                PlaceSuggestion(
-                    name = carpark.address,
-                    latitude = carpark.latitude,
-                    longitude = carpark.longitude,
-                    carparkId = carpark.carparkID
-                )
-            }
-
-            val remainingSlots = limit - carparkResults.size
-            val sampleResults = if (remainingSlots > 0) {
-                samplePlaces.filter { it.name.contains(query, ignoreCase = true) }
-                    .take(remainingSlots)
-            } else {
-                emptyList()
-            }
-
-            (carparkResults + sampleResults).distinctBy { it.name }
-        }
     }
 
     /**
@@ -259,10 +403,3 @@ class CarparkRepository @Inject constructor(
         }
     }
 }
-
-data class PlaceSuggestion(
-    val name: String,
-    val latitude: Double,
-    val longitude: Double,
-    val carparkId: String? = null
-)

@@ -3,26 +3,37 @@ package com.sc2006.spaze.presentation.screens
 import android.Manifest
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,20 +45,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.draw.shadow
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.location.LocationServices
 import com.google.maps.android.compose.GoogleMap
@@ -58,9 +65,11 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.sc2006.spaze.R
-import com.sc2006.spaze.data.local.entity.CarparkEntity
-import com.sc2006.spaze.data.repository.PlaceSuggestion
+import com.sc2006.spaze.presentation.components.PlaceAutocompleteTextField
+import com.sc2006.spaze.presentation.viewmodel.CarparkUiModel
 import com.sc2006.spaze.presentation.viewmodel.HomeViewModel
+import com.sc2006.spaze.presentation.viewmodel.OccupancyStatus
+import com.sc2006.spaze.data.local.entity.CarparkEntity.PriceTier
 import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -76,7 +85,6 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val carparks by viewModel.carparks.collectAsState()
     var searchField by remember { mutableStateOf(TextFieldValue()) }
-    val suggestions by viewModel.suggestions.collectAsState()
     val cameraEvents = viewModel.cameraEvents
     val context = LocalContext.current
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
@@ -93,6 +101,10 @@ fun HomeScreen(
         if (locationPermissionState.status is PermissionStatus.Denied) {
             locationPermissionState.launchPermissionRequest()
         }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.fetchCarparkAvailability()
     }
 
     LaunchedEffect(hasLocationPermission) {
@@ -141,21 +153,16 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            SearchBar(
-                searchField = searchField,
-                onSearchFieldChange = {
-                    searchField = it
-                    viewModel.onSearchQueryChange(it.text)
-                    if (it.text.length < 2) {
-                        viewModel.clearSuggestions()
-                    }
+            PlaceAutocompleteTextField(
+                query = searchField,
+                onQueryChange = { searchField = it },
+                onPlaceSelected = { result ->
+                    searchField = TextFieldValue(result.name)
+                    viewModel.focusOnPlace(result.latLng)
                 },
-                suggestions = suggestions,
-                onSuggestionClick = { suggestion ->
-                    viewModel.focusOnSuggestion(suggestion)
-                    searchField = TextFieldValue(suggestion.name)
-                    viewModel.clearSuggestions()
-                }
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -163,7 +170,9 @@ fun HomeScreen(
             MapSection(
                 cameraPositionState = cameraPositionState,
                 carparks = carparks,
-                onMarkerClick = onNavigateToCarparkDetails,
+                onMarkerClick = { carpark ->
+                    onNavigateToCarparkDetails(carpark.id)
+                },
                 showMyLocation = hasLocationPermission
             )
 
@@ -187,71 +196,25 @@ fun HomeScreen(
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
-        }
-    }
-}
 
-@Composable
-private fun SearchBar(
-    searchField: TextFieldValue,
-    onSearchFieldChange: (TextFieldValue) -> Unit,
-    suggestions: List<PlaceSuggestion>,
-    onSuggestionClick: (PlaceSuggestion) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-    ) {
-        OutlinedTextField(
-            value = searchField,
-            onValueChange = onSearchFieldChange,
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            placeholder = { Text(text = stringResource(id = R.string.home_search_placeholder)) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics { contentDescription = "home_search_field" },
-            singleLine = true
-        )
+            AvailabilityLegend(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
 
-        if (suggestions.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Surface(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(elevation = 4.dp, shape = RoundedCornerShape(12.dp)),
-                shape = RoundedCornerShape(12.dp)
+                    .weight(1f)
+                    .padding(top = 12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column {
-                    suggestions.forEachIndexed { index, suggestion ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSuggestionClick(suggestion) }
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                        ) {
-                            Text(
-                                text = suggestion.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-
-                            Text(
-                                text = if (suggestion.carparkId != null) {
-                                    stringResource(id = R.string.home_search_result_carpark)
-                                } else {
-                                    stringResource(id = R.string.home_search_result_place)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        if (index != suggestions.lastIndex) {
-                            Divider()
-                        }
-                    }
+                items(carparks, key = { it.id }) { carpark ->
+                    CarparkListItem(
+                        carpark = carpark,
+                        onFocus = {
+                            viewModel.focusOnPlace(LatLng(it.latitude, it.longitude))
+                        },
+                        onNavigateDetails = onNavigateToCarparkDetails
+                    )
                 }
             }
         }
@@ -261,8 +224,8 @@ private fun SearchBar(
 @Composable
 private fun MapSection(
     cameraPositionState: CameraPositionState,
-    carparks: List<CarparkEntity>,
-    onMarkerClick: (String) -> Unit,
+    carparks: List<CarparkUiModel>,
+    onMarkerClick: (CarparkUiModel) -> Unit,
     showMyLocation: Boolean
 ) {
     Box(
@@ -280,12 +243,23 @@ private fun MapSection(
             uiSettings = mapUiSettings
         ) {
             carparks.forEach { carpark ->
+                val hue = when (carpark.availabilityStatus) {
+                    OccupancyStatus.HIGH -> BitmapDescriptorFactory.HUE_GREEN
+                    OccupancyStatus.MODERATE -> BitmapDescriptorFactory.HUE_ORANGE
+                    OccupancyStatus.LOW -> BitmapDescriptorFactory.HUE_RED
+                    OccupancyStatus.EMPTY -> BitmapDescriptorFactory.HUE_ROSE
+                }
+                val snippet = buildString {
+                    append("Lots: ${carpark.availabilityLabel}")
+                    carpark.hourlyRateLabel?.let { append(" • $it") }
+                }
                 Marker(
                     state = MarkerState(position = LatLng(carpark.latitude, carpark.longitude)),
-                    title = carpark.address,
-                    snippet = stringResource(id = R.string.home_marker_snippet, carpark.availableLots),
+                    title = carpark.name,
+                    snippet = snippet,
+                    icon = BitmapDescriptorFactory.defaultMarker(hue),
                     onClick = {
-                        onMarkerClick(carpark.carparkID)
+                        onMarkerClick(carpark)
                         true
                     }
                 )
@@ -311,5 +285,108 @@ private fun PermissionRationale(onRequestPermission: () -> Unit) {
         ) {
             Text(text = stringResource(id = R.string.grant_permission))
         }
+    }
+}
+
+@Composable
+private fun CarparkListItem(
+    carpark: CarparkUiModel,
+    onFocus: (CarparkUiModel) -> Unit,
+    onNavigateDetails: (String) -> Unit
+) {
+    val statusColor = when (carpark.availabilityStatus) {
+        OccupancyStatus.HIGH -> MaterialTheme.colorScheme.primary
+        OccupancyStatus.MODERATE -> MaterialTheme.colorScheme.tertiary
+        OccupancyStatus.LOW -> MaterialTheme.colorScheme.error
+        OccupancyStatus.EMPTY -> MaterialTheme.colorScheme.error
+    }
+    val priceColor = when (carpark.priceTier) {
+        PriceTier.BUDGET -> MaterialTheme.colorScheme.primaryContainer
+        PriceTier.STANDARD -> MaterialTheme.colorScheme.secondaryContainer
+        PriceTier.PREMIUM -> MaterialTheme.colorScheme.tertiaryContainer
+        PriceTier.UNKNOWN -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    ElevatedCard(
+        onClick = { onFocus(carpark) },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = carpark.name, style = MaterialTheme.typography.titleMedium)
+                    Text(text = carpark.address, style = MaterialTheme.typography.bodySmall)
+                }
+                AssistChip(
+                    onClick = { onFocus(carpark) },
+                    label = { Text(carpark.priceTierLabel) },
+                    colors = AssistChipDefaults.assistChipColors(containerColor = priceColor)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(text = "Availability", style = MaterialTheme.typography.labelMedium)
+            LinearProgressIndicator(
+                progress = carpark.availabilityRatio.coerceIn(0f, 1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                color = statusColor
+            )
+            Text(text = carpark.availabilityLabel, style = MaterialTheme.typography.bodyLarge)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(
+                    onClick = { /* no-op */ },
+                    label = { Text(carpark.statusLabel) },
+                    colors = AssistChipDefaults.assistChipColors(containerColor = statusColor.copy(alpha = 0.2f))
+                )
+                carpark.hourlyRateLabel?.let { rateLabel ->
+                    AssistChip(
+                        onClick = { /* no-op */ },
+                        label = { Text(rateLabel) },
+                        colors = AssistChipDefaults.assistChipColors(containerColor = priceColor.copy(alpha = 0.3f))
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TextButton(onClick = { onNavigateDetails(carpark.id) }, modifier = Modifier.align(Alignment.End)) {
+                Text(text = stringResource(id = R.string.view_details))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AvailabilityLegend(modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            LegendChip(color = MaterialTheme.colorScheme.primary, label = "> 55% lots")
+            LegendChip(color = MaterialTheme.colorScheme.tertiary, label = "25% - 55%")
+            LegendChip(color = MaterialTheme.colorScheme.error, label = "< 25%")
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            LegendChip(color = MaterialTheme.colorScheme.primaryContainer, label = "Budget pricing")
+            LegendChip(color = MaterialTheme.colorScheme.secondaryContainer, label = "Standard pricing")
+            LegendChip(color = MaterialTheme.colorScheme.tertiaryContainer, label = "Premium pricing")
+        }
+    }
+}
+
+@Composable
+private fun LegendChip(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .background(color, shape = CircleShape)
+                .size(12.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(text = label, style = MaterialTheme.typography.labelSmall)
     }
 }

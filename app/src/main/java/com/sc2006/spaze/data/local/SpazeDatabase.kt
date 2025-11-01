@@ -28,7 +28,7 @@ import com.sc2006.spaze.data.local.entity.UserEntity
         ParkingSessionEntity::class,
         RecentSearchEntity::class
     ],
-    version = 5,               // bump if you just changed entities/DAOs
+    version = 6,               // bump if you just changed entities/DAOs
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

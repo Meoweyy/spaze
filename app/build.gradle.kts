@@ -24,12 +24,18 @@ android {
             useSupportLibrary = true
         }
 
-        val mapsApiKey = (project.findProperty("GOOGLE_MAPS_API_KEY") as? String)
-            ?: System.getenv("GOOGLE_MAPS_API_KEY")
-            ?: "YOUR_DEBUG_MAPS_KEY"
+        val mapsApiKey = (project.findProperty("MAPS_API_KEY") as? String)
+            ?.takeIf { it.isNotBlank() }
+            ?: System.getenv("MAPS_API_KEY")
+            ?.takeIf { it.isNotBlank() }
+            ?: "AIzaSyA3TK7APlylmpDONlWeK2uEDgFGqqITPTg"
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+        resValue("string", "MAPS_API_KEY", mapsApiKey)
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
 
-        buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"$mapsApiKey\"")
-        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = mapsApiKey
+        buildConfigField("String", "LTA_API_KEY", "\"${project.findProperty("LTA_API_KEY") ?: ""}\"")
+        val ltaApiKey = (project.findProperty("LTA_API_KEY") as? String).orEmpty()
+        manifestPlaceholders["LTA_API_KEY"] = ltaApiKey
     }
 
     buildTypes {
@@ -111,8 +117,9 @@ dependencies {
 
     // Google Maps
     implementation("com.google.maps.android:maps-compose:4.3.0")
-    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.android.gms:play-services-maps:18.1.0")
     implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("com.google.android.libraries.places:places:3.3.0")
 
 
     // WorkManager

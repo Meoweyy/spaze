@@ -1,22 +1,12 @@
 package com.sc2006.spaze.presentation.navigation
 
-<<<<<<< Updated upstream
-// Navigation.kt
-// Handles app-wide navigation between Home, Search, Favorites, and Budget screens
-// Person 2 - UI Layer
-
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
-=======
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -25,20 +15,26 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
->>>>>>> Stashed changes
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.sc2006.spaze.presentation.screens.*
+import androidx.navigation.navArgument
+import com.sc2006.spaze.presentation.screens.BudgetScreen
+import com.sc2006.spaze.presentation.screens.FavoritesScreen
+import com.sc2006.spaze.presentation.screens.HomeScreen
+import com.sc2006.spaze.presentation.screens.LoginScreen
+import com.sc2006.spaze.presentation.screens.CarparkDetailScreen
+import com.sc2006.spaze.presentation.screens.ParkingTimerScreen
+import com.sc2006.spaze.presentation.screens.ProfileScreen
+import com.sc2006.spaze.presentation.screens.SearchScreen
+import com.sc2006.spaze.presentation.screens.SignUpScreen
 
-/**
- * Navigation Routes
- */
 sealed class Screen(val route: String) {
     object Login : Screen("login")
     object SignUp : Screen("signup")
@@ -48,44 +44,17 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
     object Budget : Screen("budget")
     object ParkingTimer : Screen("parking_timer")
-    object CarparkDetails : Screen("carpark_details/{carparkId}") {
-        fun createRoute(carparkId: String) = "carpark_details/$carparkId"
+    object CarparkDetail : Screen("carparkDetail/{carparkNumber}") {
+        fun createRoute(carparkNumber: String) = "carparkDetail/$carparkNumber"
     }
 }
 
-/**
- * Main Navigation Graph with Bottom Navigation
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SpazeNavigation(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Screen.Login.route
 ) {
-<<<<<<< Updated upstream
-    val currentBackStack by navController.currentBackStackEntryAsState()
-    val currentRoute = currentBackStack?.destination?.route
-    
-    Scaffold(
-        bottomBar = { 
-            val mainScreens = listOf("home", "search", "favorites", "budget")
-            if (currentRoute in mainScreens) {
-                BottomNavigationBar(navController)
-            }
-        }
-    ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-            modifier = Modifier.padding(paddingValues)
-        ) {
-        composable(Screen.Login.route) {
-            LoginScreen(
-                onNavigateToSignUp = { navController.navigate(Screen.SignUp.route) },
-                onNavigateToHome = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
-=======
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
@@ -102,7 +71,6 @@ fun SpazeNavigation(
                             launchSingleTop = true
                             restoreState = true
                         }
->>>>>>> Stashed changes
                     }
                 )
             }
@@ -141,8 +109,8 @@ fun SpazeNavigation(
                     onNavigateToFavorites = { navController.navigate(Screen.Favorites.route) },
                     onNavigateToProfile = { navController.navigate(Screen.Profile.route) },
                     onNavigateToBudget = { navController.navigate(Screen.Budget.route) },
-                    onNavigateToCarparkDetails = { carparkId ->
-                        navController.navigate(Screen.CarparkDetails.createRoute(carparkId))
+                    onNavigateToCarparkDetails = { carparkNumber ->
+                        navController.navigate(Screen.CarparkDetail.createRoute(carparkNumber))
                     }
                 )
             }
@@ -151,7 +119,7 @@ fun SpazeNavigation(
                 SearchScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToCarparkDetails = { carparkId ->
-                        navController.navigate(Screen.CarparkDetails.createRoute(carparkId))
+                        navController.navigate(Screen.CarparkDetail.createRoute(carparkId))
                     }
                 )
             }
@@ -160,7 +128,7 @@ fun SpazeNavigation(
                 FavoritesScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToCarparkDetails = { carparkId ->
-                        navController.navigate(Screen.CarparkDetails.createRoute(carparkId))
+                        navController.navigate(Screen.CarparkDetail.createRoute(carparkId))
                     }
                 )
             }
@@ -188,12 +156,14 @@ fun SpazeNavigation(
                 )
             }
 
-            composable(Screen.CarparkDetails.route) { backStackEntry ->
-                val carparkId = backStackEntry.arguments?.getString("carparkId") ?: ""
-                CarparkDetailsScreen(
-                    carparkId = carparkId,
-                    onNavigateBack = { navController.popBackStack() },
-                    onStartParking = { navController.navigate(Screen.ParkingTimer.route) }
+            composable(
+                route = Screen.CarparkDetail.route,
+                arguments = listOf(navArgument("carparkNumber") { defaultValue = "" })
+            ) { backStackEntry ->
+                val carparkNumber = backStackEntry.arguments?.getString("carparkNumber") ?: ""
+                CarparkDetailScreen(
+                    carparkNumber = carparkNumber,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }
@@ -202,7 +172,7 @@ fun SpazeNavigation(
 
 private data class BottomNavItem(
     val screen: Screen,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val icon: ImageVector,
     val label: String
 )
 
@@ -238,5 +208,4 @@ private fun SpazeBottomBar(
             )
         }
     }
-}
 }

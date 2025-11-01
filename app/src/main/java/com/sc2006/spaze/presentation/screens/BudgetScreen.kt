@@ -1,13 +1,5 @@
 package com.sc2006.spaze.presentation.screens
 
-<<<<<<< Updated upstream
-// BudgetScreen.kt
-// Shows monthly budget info and Set Budget button
-// Person 2 - UI Layer
-
-import androidx.compose.foundation.layout.*
-=======
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
->>>>>>> Stashed changes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -41,11 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-<<<<<<< Updated upstream
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-=======
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -53,21 +39,18 @@ import com.sc2006.spaze.presentation.viewmodel.BudgetUiState
 import com.sc2006.spaze.presentation.viewmodel.BudgetViewModel
 import java.text.NumberFormat
 import java.util.Locale
->>>>>>> Stashed changes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetScreen(
+    viewModel: BudgetViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit
 ) {
-<<<<<<< Updated upstream
-=======
     val uiState by viewModel.uiState.collectAsState()
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale("en", "SG")) }
     val sliderLimit = uiState.budgetLimit?.coerceAtLeast(1.0) ?: 1.0
     val sliderValue = uiState.currentAmount.coerceIn(0.0, sliderLimit)
 
->>>>>>> Stashed changes
     Scaffold(
         topBar = {
             TopAppBar(
@@ -80,34 +63,6 @@ fun BudgetScreen(
             )
         }
     ) { paddingValues ->
-<<<<<<< Updated upstream
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Top
-        ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF3EDF7))
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Monthly Budget", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Text("No budget set", color = Color.Gray)
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = { /* future logic */ },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EE))
-            ) {
-                Text("Set Budget")
-=======
         BudgetContent(
             paddingValues = paddingValues,
             uiState = uiState,
@@ -280,7 +235,6 @@ private fun BudgetLimitDialog(
                 TextButton(onClick = onDismiss) {
                     Text("Cancel")
                 }
->>>>>>> Stashed changes
             }
         }
     )

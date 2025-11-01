@@ -31,8 +31,9 @@
     <string name="last_updated">Last Updated</string>
     <string name="home_nearby_title">Nearby Carparks</string>
     <string name="home_nearby_count">%1$d carparks found</string>
-    <string name="home_marker_snippet">%1$d lots available</string>
+    <string name="home_marker_snippet">Lots available</string>
     <string name="home_search_placeholder">Search for carparks or places</string>
+    <string name="view_details">View details</string>
     <string name="home_search_result_carpark">Carpark</string>
     <string name="home_search_result_place">Place</string>
 
