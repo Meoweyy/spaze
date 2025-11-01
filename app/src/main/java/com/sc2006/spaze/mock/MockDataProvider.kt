@@ -178,21 +178,21 @@ object MockDataProvider {
         RecentSearchEntity(
             searchID = "search1",
             userID = "mock_user_123",
-            query = "Orchard",
+            searchQuery = "Orchard",
             searchType = RecentSearchEntity.SearchType.PLACE_NAME,
             timestamp = System.currentTimeMillis() - 3600000 // 1 hour ago
         ),
         RecentSearchEntity(
             searchID = "search2",
             userID = "mock_user_123",
-            query = "Marina Bay",
+            searchQuery = "Marina Bay",
             searchType = RecentSearchEntity.SearchType.PLACE_NAME,
             timestamp = System.currentTimeMillis() - 7200000 // 2 hours ago
         ),
         RecentSearchEntity(
             searchID = "search3",
             userID = "mock_user_123",
-            query = "Bugis",
+            searchQuery = "Bugis",
             searchType = RecentSearchEntity.SearchType.PLACE_NAME,
             timestamp = System.currentTimeMillis() - 86400000 // 1 day ago
         )
@@ -211,11 +211,11 @@ object MockDataProvider {
         userID = "mock_user_123",
         carparkID = "CP001",
         carparkName = "Orchard Central",
+        carparkAddress = "181 Orchard Road, Singapore 238896",
         startTime = System.currentTimeMillis() - 3600000, // Started 1 hour ago
         endTime = null, // Still active
-        estimatedCost = 2.50f,
-        actualCost = null,
-        lotNumber = "A-123"
+        estimatedCost = 2.50,
+        actualCost = null
     )
 
     /**
@@ -227,22 +227,22 @@ object MockDataProvider {
             userID = "mock_user_123",
             carparkID = "CP002",
             carparkName = "Marina Square",
+            carparkAddress = "6 Raffles Boulevard, Singapore 039594",
             startTime = System.currentTimeMillis() - 172800000, // 2 days ago
             endTime = System.currentTimeMillis() - 169200000, // 2 days ago + 1 hour
-            estimatedCost = 2.00f,
-            actualCost = 2.50f,
-            lotNumber = "B-045"
+            estimatedCost = 2.00,
+            actualCost = 2.50
         ),
         ParkingSessionEntity(
             sessionID = "session_003",
             userID = "mock_user_123",
             carparkID = "CP003",
             carparkName = "ION Orchard",
+            carparkAddress = "2 Orchard Turn, Singapore 238801",
             startTime = System.currentTimeMillis() - 259200000, // 3 days ago
             endTime = System.currentTimeMillis() - 255600000, // 3 days ago + 1 hour
-            estimatedCost = 3.00f,
-            actualCost = 3.50f,
-            lotNumber = "C-201"
+            estimatedCost = 3.00,
+            actualCost = 3.50
         )
     )
 

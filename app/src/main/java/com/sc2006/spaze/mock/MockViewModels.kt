@@ -306,7 +306,7 @@ class MockParkingSessionViewModel : ViewModel() {
         }
     }
 
-    fun startSession(carparkId: String, carparkName: String, lotNumber: String) {
+    fun startSession(carparkId: String, carparkName: String, carparkAddress: String) {
         viewModelScope.launch {
             delay(500)
             val session = ParkingSessionEntity(
@@ -314,11 +314,11 @@ class MockParkingSessionViewModel : ViewModel() {
                 userID = "mock_user_123",
                 carparkID = carparkId,
                 carparkName = carparkName,
+                carparkAddress = carparkAddress,
                 startTime = System.currentTimeMillis(),
                 endTime = null,
-                estimatedCost = 2.50f,
-                actualCost = null,
-                lotNumber = lotNumber
+                estimatedCost = 2.50,
+                actualCost = null
             )
             _activeSession.value = session
             updateEstimatedCost()
