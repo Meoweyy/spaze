@@ -57,16 +57,9 @@ class AuthViewModel @Inject constructor(
      *
      * TODO - Person 4: After DataStore integration, this should check persisted auth state
      */
-    private fun checkAuthStatus() {
-        viewModelScope.launch {
-            val user = authRepository.restoreSession()
-            _uiState.update {
-                it.copy(
-                    isAuthenticated = user != null,
-                    currentUser = user
-                )
-            }
-        }
+    private suspend fun checkAuthStatus() {
+        val user = authRepository.getCurrentUser()
+        _uiState.update { it.copy(isAuthenticated = user != null, currentUser = user) }
     }
 
     /**
@@ -124,36 +117,20 @@ class AuthViewModel @Inject constructor(
     }
 
     /**
-     * Sign out
+     * Sign in with Google
      */
-    fun signOut() {
+    fun signInWithGoogle(idToken: String) {
         viewModelScope.launch {
-            authRepository.signOut()
-            _uiState.update {
-                it.copy(
-                    isAuthenticated = false,
-                    currentUser = null
-                )
-            }
-        }
-    }
-
-    /**
-     * Change password
-     */
-    fun changePassword(oldPassword: String, newPassword: String) {
-        viewModelScope.launch {
-            val userId = _uiState.value.currentUser?.userID ?: return@launch
-
             _uiState.update { it.copy(isLoading = true, error = null) }
 
-            val result = authRepository.changePassword(userId, oldPassword, newPassword)
+            val result = authRepository.signInWithGoogle(idToken)
             result.fold(
-                onSuccess = {
+                onSuccess = { user ->
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            passwordChangeSuccess = true
+                            isAuthenticated = true,
+                            currentUser = user
                         )
                     }
                 },
@@ -165,6 +142,44 @@ class AuthViewModel @Inject constructor(
             )
         }
     }
+
+    /**
+     * Reset password
+     */
+    fun resetPassword(email: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            val result = authRepository.resetPassword(email)
+            result.fold(
+                onSuccess = {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            passwordResetEmailSent = true
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(isLoading = false, error = error.message)
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Sign out
+     */
+    fun signOut() {
+        viewModelScope.launch {
+            authRepository.signOut()
+            _uiState.update {
+                it.copy(isAuthenticated = false, currentUser = null)
+            }
+        }
+    }
 }
 
 data class AuthUiState(
@@ -172,6 +187,5 @@ data class AuthUiState(
     val isAuthenticated: Boolean = false,
     val currentUser: UserEntity? = null,
     val error: String? = null,
-    val passwordResetEmailSent: Boolean = false,
-    val passwordChangeSuccess: Boolean = false
+    val passwordResetEmailSent: Boolean = false
 )
