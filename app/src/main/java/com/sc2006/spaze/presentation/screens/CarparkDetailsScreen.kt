@@ -2,10 +2,11 @@ package com.sc2006.spaze.presentation.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -14,8 +15,10 @@ import androidx.compose.ui.unit.dp
 fun CarparkDetailsScreen(
     carparkId: String,
     onNavigateBack: () -> Unit,
-    onStartParking: () -> Unit
+    onStartParkingSession: () -> Unit
 ) {
+    var isFavorite by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -26,8 +29,11 @@ fun CarparkDetailsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { }) {
-                        Icon(Icons.Default.FavoriteBorder, "Favorite")
+                    IconButton(onClick = { isFavorite = !isFavorite }) {
+                        Icon(
+                            if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            "Favorite"
+                        )
                     }
                 }
             )
@@ -44,92 +50,69 @@ fun CarparkDetailsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Carpark $carparkId",
+                        text = "Carpark ID: $carparkId",
                         style = MaterialTheme.typography.titleLarge
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Available Lots",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "-- / --",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = "Lot Type",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Car",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Text(
-                        text = "Address placeholder",
+                        text = "Address",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text("Available Lots")
-                        Text(
-                            text = "-- / --",
-                            style = MaterialTheme.typography.headlineMedium
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Status")
-                        Text(
-                            text = "Loading...",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Pricing",
-                        style = MaterialTheme.typography.titleMedium
+                        text = "Loading...",
+                        style = MaterialTheme.typography.bodyLarge
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Weekday: $-- per hour")
-                    Text("Weekend: $-- per hour")
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Button(
+                onClick = onStartParkingSession,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                OutlinedButton(
-                    onClick = { },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Directions, null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Directions")
-                }
-
-                Button(
-                    onClick = onStartParking,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Timer, null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Start Parking")
-                }
+                Text("Start Parking Session")
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = "Last Updated: --",
-                style = MaterialTheme.typography.bodySmall
-            )
+            OutlinedButton(
+                onClick = { /* TODO: Get directions */ },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Get Directions")
+            }
         }
     }
 }

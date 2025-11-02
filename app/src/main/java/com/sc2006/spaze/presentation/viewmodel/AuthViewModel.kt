@@ -21,7 +21,10 @@ class AuthViewModel @Inject constructor(
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     init {
-        checkAuthStatus()
+        // Check if user is already logged in (session restoration)
+        viewModelScope.launch {
+            checkAuthStatus()
+        }
     }
 
     /**
@@ -126,7 +129,7 @@ class AuthViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            passwordResetEmailSent = true
+                            resetPasswordSuccess = true
                         )
                     }
                 },
@@ -144,10 +147,47 @@ class AuthViewModel @Inject constructor(
      */
     fun signOut() {
         viewModelScope.launch {
+            val result = authRepository.signOut()
+            result.fold(
+                onSuccess = {
+                    _uiState.update {
+                        it.copy(
+                            isAuthenticated = false,
+                            currentUser = null,
+                            error = null
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(error = error.message)
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Clear error
+     */
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
+
+    /**
+     * Clear reset password success flag
+     */
+    fun clearResetPasswordSuccess() {
+        _uiState.update { it.copy(resetPasswordSuccess = false) }
+    }
+
+    /**
+     * Clear session (for debugging)
+     */
+    fun clearSession() {
+        viewModelScope.launch {
             authRepository.signOut()
-            _uiState.update {
-                it.copy(isAuthenticated = false, currentUser = null)
-            }
+            _uiState.update { AuthUiState() }
         }
     }
 }
@@ -157,5 +197,5 @@ data class AuthUiState(
     val isAuthenticated: Boolean = false,
     val currentUser: UserEntity? = null,
     val error: String? = null,
-    val passwordResetEmailSent: Boolean = false
+    val resetPasswordSuccess: Boolean = false
 )

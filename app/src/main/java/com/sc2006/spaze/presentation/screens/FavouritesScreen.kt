@@ -18,9 +18,10 @@ fun FavoritesScreen(
     onNavigateBack: () -> Unit,
     onNavigateToCarparkDetails: (String) -> Unit
 ) {
-    val favoriteCarparks by viewModel.favoriteCarparks.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val favoriteCarparks by viewModel.favoriteCarparks.collectAsState()
 
+    // TODO: Get actual user ID from auth
     LaunchedEffect(Unit) {
         viewModel.loadFavorites("user123")
     }
@@ -28,7 +29,7 @@ fun FavoritesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Favorite Carparks") },
+                title = { Text("Favorites") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, "Back")
@@ -37,30 +38,29 @@ fun FavoritesScreen(
             )
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .padding(16.dp)
         ) {
             if (uiState.isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            } else if (favoriteCarparks.isEmpty()) {
-                Text(
-                    text = "No favorite carparks yet",
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(16.dp),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            } else {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "${favoriteCarparks.size} favorites",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
                 }
+            } else if (favoriteCarparks.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No favorite carparks yet")
+                }
+            } else {
+                // TODO: Display favorites list
+                Text("${favoriteCarparks.size} favorite carparks")
             }
         }
     }
