@@ -35,10 +35,81 @@ class AuthViewModel @Inject constructor(
         _uiState.update { it.copy(isAuthenticated = user != null, currentUser = user) }
     }
 
+    // ═══════════════════════════════════════════════════
+    // VALIDATION METHODS
+    // ═══════════════════════════════════════════════════
+
     /**
-     * Sign up with email
+     * Validate email format
      */
-    fun signUpWithEmail(userName: String, email: String, password: String) {
+    private fun validateEmail(email: String): String? {
+        if (email.isBlank()) return "Email is required"
+        if (!email.matches(Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"))) {
+            return "Invalid email format"
+        }
+        return null
+    }
+
+    /**
+     * Validate password strength
+     */
+    private fun validatePassword(password: String): String? {
+        if (password.isBlank()) return "Password is required"
+        if (password.length < 6) return "Password must be at least 6 characters"
+        if (password.length > 128) return "Password is too long"
+        return null
+    }
+
+    /**
+     * Validate username
+     */
+    private fun validateUserName(userName: String): String? {
+        if (userName.isBlank()) return "Username is required"
+        if (userName.length < 3) return "Username must be at least 3 characters"
+        if (userName.length > 50) return "Username is too long"
+        if (!userName.matches(Regex("^[a-zA-Z0-9_]+$"))) {
+            return "Username can only contain letters, numbers, and underscores"
+        }
+        return null
+    }
+
+    /**
+     * Validate password confirmation
+     */
+    private fun validatePasswordConfirmation(password: String, confirmPassword: String): String? {
+        if (password != confirmPassword) return "Passwords do not match"
+        return null
+    }
+
+    // ═══════════════════════════════════════════════════
+    // AUTHENTICATION METHODS
+    // ═══════════════════════════════════════════════════
+
+    /**
+     * Sign up with email (with validation)
+     */
+    fun signUpWithEmail(userName: String, email: String, password: String, confirmPassword: String? = null) {
+        // Validate inputs
+        validateUserName(userName)?.let { error ->
+            _uiState.update { it.copy(error = error) }
+            return
+        }
+        validateEmail(email)?.let { error ->
+            _uiState.update { it.copy(error = error) }
+            return
+        }
+        validatePassword(password)?.let { error ->
+            _uiState.update { it.copy(error = error) }
+            return
+        }
+        // Validate password confirmation if provided
+        confirmPassword?.let { confirm ->
+            validatePasswordConfirmation(password, confirm)?.let { error ->
+                _uiState.update { it.copy(error = error) }
+                return
+            }
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
@@ -63,9 +134,19 @@ class AuthViewModel @Inject constructor(
     }
 
     /**
-     * Sign in with email
+     * Sign in with email (with validation)
      */
     fun signInWithEmail(email: String, password: String) {
+        // Validate inputs
+        validateEmail(email)?.let { error ->
+            _uiState.update { it.copy(error = error) }
+            return
+        }
+        validatePassword(password)?.let { error ->
+            _uiState.update { it.copy(error = error) }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
@@ -117,9 +198,15 @@ class AuthViewModel @Inject constructor(
     }
 
     /**
-     * Reset password
+     * Reset password (with validation)
      */
     fun resetPassword(email: String) {
+        // Validate email
+        validateEmail(email)?.let { error ->
+            _uiState.update { it.copy(error = error) }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
@@ -143,10 +230,12 @@ class AuthViewModel @Inject constructor(
     }
 
     /**
-     * Sign out
+     * Sign out (with loading state)
      */
     fun signOut() {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
             val result = authRepository.signOut()
             result.fold(
                 onSuccess = {
@@ -154,13 +243,14 @@ class AuthViewModel @Inject constructor(
                         it.copy(
                             isAuthenticated = false,
                             currentUser = null,
-                            error = null
+                            error = null,
+                            isLoading = false
                         )
                     }
                 },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(error = error.message)
+                        it.copy(error = error.message, isLoading = false)
                     }
                 }
             )
