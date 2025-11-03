@@ -159,6 +159,26 @@ class AuthRepository @Inject constructor(
         if (user == null) error("Account not found")
     }
 
+    /** Change password for authenticated user */
+    suspend fun changePassword(
+        userId: String,
+        currentPassword: String,
+        newPassword: String
+    ): Result<Unit> = runCatching {
+        withContext(Dispatchers.IO) {
+            val user = userDao.getUserById(userId) ?: error("User not found")
+            
+            // Verify current password
+            if (user.password != currentPassword) {
+                error("Current password is incorrect")
+            }
+            
+            // Update to new password
+            val updatedUser = user.copy(password = newPassword)
+            userDao.updateUser(updatedUser)
+        }
+    }
+
     /** Sign out */
     suspend fun signOut(): Result<Unit> = runCatching {
         preferencesManager.clearSession()

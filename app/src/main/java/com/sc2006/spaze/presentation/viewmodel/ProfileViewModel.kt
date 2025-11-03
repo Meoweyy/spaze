@@ -139,11 +139,34 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun changePassword(oldPassword: String, newPassword: String) {
+    fun changePassword(currentPassword: String, newPassword: String) {
+        val userId = authRepository.currentUserId() ?: run {
+            _uiState.update { it.copy(error = "No active session") }
+            return
+        }
+        
         viewModelScope.launch {
-            _uiState.update {
-                it.copy(isLoading = false, error = "Password change not yet implemented")
-            }
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            
+            val result = authRepository.changePassword(userId, currentPassword, newPassword)
+            result.fold(
+                onSuccess = {
+                    _uiState.update { 
+                        it.copy(
+                            isLoading = false, 
+                            updateSuccess = true
+                        ) 
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false, 
+                            error = error.message ?: "Failed to change password"
+                        )
+                    }
+                }
+            )
         }
     }
 

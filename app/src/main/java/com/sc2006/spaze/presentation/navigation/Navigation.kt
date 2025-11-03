@@ -21,6 +21,8 @@ sealed class Screen(val route: String) {
     object Search : Screen("search")
     object Favorites : Screen("favorites")
     object Profile : Screen("profile")
+    object EditProfile : Screen("edit_profile")
+    object ChangePassword : Screen("change_password")
     object Budget : Screen("budget")
     object ParkingTimer : Screen("parking_timer")
     object CarparkDetails : Screen("carpark_details/{carparkId}") {
@@ -43,15 +45,6 @@ fun SpazeNavigation(
         startDestination = Screen.Login.route
     ) {
         composable(Screen.Login.route) {
-            // If already authenticated, navigate to home immediately
-            LaunchedEffect(authState.isAuthenticated) {
-                if (authState.isAuthenticated) {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
-                    }
-                }
-            }
-
             LoginScreen(
                 onNavigateToSignUp = { navController.navigate(Screen.SignUp.route) },
                 onNavigateToHome = {
@@ -122,9 +115,27 @@ fun SpazeNavigation(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToLogin = {
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
+                        popUpTo(Screen.Login.route) { inclusive = true }
                     }
+                },
+                onNavigateToEditProfile = {
+                    navController.navigate(Screen.EditProfile.route)
+                },
+                onNavigateToChangePassword = {
+                    navController.navigate(Screen.ChangePassword.route)
                 }
+            )
+        }
+
+        composable(Screen.EditProfile.route) {
+            EditProfileScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.ChangePassword.route) {
+            ChangePasswordScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 

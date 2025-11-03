@@ -15,7 +15,9 @@ import com.sc2006.spaze.presentation.viewmodel.ProfileViewModel
 fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
-    onNavigateToLogin: () -> Unit
+    onNavigateToLogin: () -> Unit,
+    onNavigateToEditProfile: () -> Unit,
+    onNavigateToChangePassword: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -72,17 +74,14 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = {
-                    // Example: show edit dialog or navigate to an EditProfile screen and then:
-                    // viewModel.updateProfile(newUserName, newEmail)
-                },
+                onClick = onNavigateToEditProfile,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Edit Profile") }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { /* TODO: Change password flow */ },
+                onClick = onNavigateToChangePassword,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Change Password") }
 
