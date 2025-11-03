@@ -17,7 +17,8 @@ fun ProfileScreen(
     onNavigateBack: () -> Unit,
     onNavigateToLogin: () -> Unit,
     onNavigateToEditProfile: () -> Unit,
-    onNavigateToChangePassword: () -> Unit
+    onNavigateToChangePassword: () -> Unit,
+    onNavigateToPreferences: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -88,7 +89,7 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { /* TODO: Open Preferences screen */ },
+                onClick = onNavigateToPreferences,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Preferences") }
 

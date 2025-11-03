@@ -23,6 +23,7 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
     object EditProfile : Screen("edit_profile")
     object ChangePassword : Screen("change_password")
+    object Preferences : Screen("preferences")
     object Budget : Screen("budget")
     object ParkingTimer : Screen("parking_timer")
     object CarparkDetails : Screen("carpark_details/{carparkId}") {
@@ -123,6 +124,9 @@ fun SpazeNavigation(
                 },
                 onNavigateToChangePassword = {
                     navController.navigate(Screen.ChangePassword.route)
+                },
+                onNavigateToPreferences = {
+                    navController.navigate(Screen.Preferences.route)
                 }
             )
         }
@@ -135,6 +139,12 @@ fun SpazeNavigation(
 
         composable(Screen.ChangePassword.route) {
             ChangePasswordScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Preferences.route) {
+            PreferencesScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

@@ -1,13 +1,20 @@
 package com.sc2006.spaze.presentation.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sc2006.spaze.data.local.entity.CarparkEntity
+import com.sc2006.spaze.data.preferences.PreferencesDataStore
 import com.sc2006.spaze.data.repository.CarparkRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Home ViewModel
@@ -16,7 +23,8 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val carparkRepository: CarparkRepository
+    private val carparkRepository: CarparkRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -31,14 +39,62 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * Observe carparks from database
+     * Observe carparks from database and filter by search radius
      */
     private fun observeCarparks() {
         viewModelScope.launch {
-            carparkRepository.getAllCarparks().collect { carparks ->
-                _carparks.value = carparks
+            combine(
+                carparkRepository.getAllCarparks(),
+                PreferencesDataStore.getSearchRadius(context),
+                _uiState
+            ) { carparks, searchRadiusKm, state ->
+                filterCarparksByDistance(carparks, state.userLatitude, state.userLongitude, searchRadiusKm)
+            }.collect { filtered ->
+                _carparks.value = filtered
             }
         }
+    }
+    
+    /**
+     * Filter carparks by distance from user location
+     */
+    private fun filterCarparksByDistance(
+        carparks: List<CarparkEntity>,
+        userLat: Double,
+        userLng: Double,
+        maxDistanceKm: Float
+    ): List<CarparkEntity> {
+        return carparks.filter { carpark ->
+            val distance = calculateDistance(
+                userLat,
+                userLng,
+                carpark.latitude,
+                carpark.longitude
+            )
+            distance <= maxDistanceKm
+        }.sortedBy { carpark ->
+            calculateDistance(
+                userLat,
+                userLng,
+                carpark.latitude,
+                carpark.longitude
+            )
+        }
+    }
+    
+    /**
+     * Calculate distance between two lat/lng points using Haversine formula
+     * Returns distance in kilometers
+     */
+    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
+        val R = 6371.0 // Earth's radius in kilometers
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = sin(dLat / 2) * sin(dLat / 2) +
+                cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
+                sin(dLon / 2) * sin(dLon / 2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return (R * c).toFloat()
     }
 
     /**

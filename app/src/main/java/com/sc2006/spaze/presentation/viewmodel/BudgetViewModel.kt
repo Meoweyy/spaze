@@ -1,17 +1,21 @@
 package com.sc2006.spaze.presentation.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sc2006.spaze.data.local.entity.BudgetEntity
+import com.sc2006.spaze.data.preferences.PreferencesDataStore
 import com.sc2006.spaze.data.repository.BudgetRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class BudgetViewModel @Inject constructor(
-    private val budgetRepository: BudgetRepository
+    private val budgetRepository: BudgetRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BudgetUiState())
@@ -154,6 +158,10 @@ class BudgetViewModel @Inject constructor(
 
     private suspend fun checkBudgetThresholds(userId: String) {
         try {
+            // Check if notifications are enabled before showing warnings
+            val notificationsEnabled = PreferencesDataStore.getNotificationsEnabled(context).first()
+            if (!notificationsEnabled) return // Skip if notifications disabled
+            
             if (budgetRepository.checkBudgetWarning(userId)) {
                 _uiState.update {
                     it.copy(

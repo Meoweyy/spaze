@@ -1,11 +1,14 @@
 package com.sc2006.spaze.presentation.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sc2006.spaze.data.local.entity.ParkingSessionEntity
+import com.sc2006.spaze.data.preferences.PreferencesDataStore
 import com.sc2006.spaze.data.repository.BudgetRepository
 import com.sc2006.spaze.data.repository.ParkingSessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -22,7 +25,8 @@ import kotlin.math.ceil
 @HiltViewModel
 class ParkingSessionViewModel @Inject constructor(
     private val sessionRepository: ParkingSessionRepository,
-    private val budgetRepository: BudgetRepository
+    private val budgetRepository: BudgetRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ParkingSessionUiState())
@@ -270,34 +274,36 @@ class ParkingSessionViewModel @Inject constructor(
      * Check session budget cap warnings
      */
     private fun checkBudgetWarnings(session: ParkingSessionEntity, currentCost: Double) {
-        session.perSessionBudgetCap?.let { cap ->
-            val percentage = currentCost / cap
+        // Check if notifications are enabled before showing warnings
+        viewModelScope.launch {
+            val notificationsEnabled = PreferencesDataStore.getNotificationsEnabled(context).first()
+            if (!notificationsEnabled) return@launch // Skip if notifications disabled
+            
+            session.perSessionBudgetCap?.let { cap ->
+                val percentage = currentCost / cap
 
-            when {
-                percentage >= 1.0 && !session.hasExceededBeenSent -> {
-                    _uiState.update {
-                        it.copy(
-                            showBudgetExceeded = true,
-                            budgetExceededMessage = "Session cost exceeded your budget cap of SGD ${String.format("%.2f", cap)}!"
-                        )
-                    }
-                    viewModelScope.launch {
+                when {
+                    percentage >= 1.0 && !session.hasExceededBeenSent -> {
+                        _uiState.update {
+                            it.copy(
+                                showBudgetExceeded = true,
+                                budgetExceededMessage = "Session cost exceeded your budget cap of SGD ${String.format("%.2f", cap)}!"
+                            )
+                        }
                         sessionRepository.markBudgetExceededAsSent(session.sessionID)
                     }
-                }
-                percentage >= BUDGET_CRITICAL_PERCENTAGE && !session.hasWarningBeenSent -> {
-                    _uiState.update {
-                        it.copy(
-                            showBudgetWarning = true,
-                            budgetWarningMessage = "You're at ${(percentage * 100).toInt()}% of your session budget cap"
-                        )
-                    }
-                    viewModelScope.launch {
+                    percentage >= BUDGET_CRITICAL_PERCENTAGE && !session.hasWarningBeenSent -> {
+                        _uiState.update {
+                            it.copy(
+                                showBudgetWarning = true,
+                                budgetWarningMessage = "You're at ${(percentage * 100).toInt()}% of your session budget cap"
+                            )
+                        }
                         sessionRepository.markBudgetWarningAsSent(session.sessionID)
                     }
-                }
-                else -> {
-                    // No warning needed
+                    else -> {
+                        // No warning needed
+                    }
                 }
             }
         }
@@ -307,6 +313,10 @@ class ParkingSessionViewModel @Inject constructor(
      * Check monthly budget impact
      */
     private suspend fun checkMonthlyBudget(userId: String, sessionCost: Double) {
+        // Check if notifications are enabled before showing warnings
+        val notificationsEnabled = PreferencesDataStore.getNotificationsEnabled(context).first()
+        if (!notificationsEnabled) return // Skip if notifications disabled
+        
         val currentBudget = budgetRepository.getCurrentMonthBudget(userId) ?: return
 
         val projectedTotal = currentBudget.currentMonthSpending + sessionCost
