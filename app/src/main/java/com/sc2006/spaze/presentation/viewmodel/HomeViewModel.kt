@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sc2006.spaze.data.local.entity.CarparkEntity
+import com.sc2006.spaze.data.location.LocationService
 import com.sc2006.spaze.data.preferences.PreferencesDataStore
 import com.sc2006.spaze.data.repository.CarparkRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,7 +25,8 @@ import kotlin.math.sqrt
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val carparkRepository: CarparkRepository,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val locationService: LocationService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -36,6 +38,41 @@ class HomeViewModel @Inject constructor(
     init {
         loadCarparks()
         observeCarparks()
+        getLastKnownLocation()
+    }
+
+    /**
+     * Get last known location on startup
+     */
+    private fun getLastKnownLocation() {
+        viewModelScope.launch {
+            locationService.getLastLocation()?.let { location ->
+                updateUserLocation(location.latitude, location.longitude)
+            }
+        }
+    }
+
+    /**
+     * Start tracking user location
+     */
+    fun startLocationTracking() {
+        viewModelScope.launch {
+            locationService.getLocationUpdates(intervalMillis = 10000)
+                .catch { e ->
+                    _uiState.update { it.copy(error = "Location error: ${e.message}") }
+                }
+                .collect { location ->
+                    updateUserLocation(location.latitude, location.longitude)
+                    _uiState.update { it.copy(isLocationTrackingEnabled = true) }
+                }
+        }
+    }
+
+    /**
+     * Stop location tracking
+     */
+    fun stopLocationTracking() {
+        _uiState.update { it.copy(isLocationTrackingEnabled = false) }
     }
 
     /**
@@ -177,9 +214,10 @@ class HomeViewModel @Inject constructor(
 data class HomeUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val userLatitude: Double = 1.3521, // Singapore default
+    val userLatitude: Double = 1.3521, // Singapore default (will be overridden by real location)
     val userLongitude: Double = 103.8198,
-    val mapViewType: MapViewType = MapViewType.STANDARD
+    val mapViewType: MapViewType = MapViewType.STANDARD,
+    val isLocationTrackingEnabled: Boolean = false
 )
 
 enum class MapViewType {

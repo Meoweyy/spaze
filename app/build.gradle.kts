@@ -22,6 +22,15 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // Read Google Maps API key from local.properties
+        val properties = org.jetbrains.kotlin.konan.properties.Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.inputStream().use { properties.load(it) }
+        }
+        buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"${properties.getProperty("GOOGLE_MAPS_API_KEY", "YOUR_API_KEY_HERE")}\"")
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = properties.getProperty("GOOGLE_MAPS_API_KEY", "YOUR_API_KEY_HERE")
     }
 
     buildTypes {
@@ -108,9 +117,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // Google Maps
-    //implementation("com.google.maps.android:maps-compose:4.3.0")
-    //implementation("com.google.android.gms:play-services-maps:18.2.0")
-    //implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("com.google.maps.android:maps-compose:4.3.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 
 
     // WorkManager
