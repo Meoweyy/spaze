@@ -77,6 +77,16 @@ fun SpazeNavigation(
             )
         }
 
+        composable(Screen.ForgotPassword.route) {
+            ForgotPasswordScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onSendResetLink = { email ->
+                    // You can later hook this up to Firebase or your backend
+                    println("Reset link requested for: $email")
+                }
+            )
+        }
+
         composable(Screen.Home.route) {
             HomeScreen(
                 onNavigateToSearch = { navController.navigate(Screen.Search.route) },
