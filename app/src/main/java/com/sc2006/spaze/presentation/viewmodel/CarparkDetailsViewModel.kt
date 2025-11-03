@@ -190,11 +190,10 @@ class CarparkDetailsViewModel @Inject constructor(
      */
     fun getLotBreakdown(): LotBreakdown? {
         val carpark = _carpark.value ?: return null
-
         return LotBreakdown(
             carLots = LotInfo(carpark.totalLotsC, carpark.availableLotsC),
-            motorcycleLots = LotInfo(carpark.totalLotsH, carpark.availableLotsH),
-            heavyVehicleLots = LotInfo(carpark.totalLotsY, carpark.availableLotsY),
+            motorcycleLots = LotInfo(carpark.totalLotsY, carpark.availableLotsY), // Y = motorcycle
+            heavyVehicleLots = LotInfo(carpark.totalLotsH, carpark.availableLotsH), // H = heavy
             seasonLots = LotInfo(carpark.totalLotsS, carpark.availableLotsS)
         )
     }

@@ -1,3 +1,4 @@
+
 package com.sc2006.spaze.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
@@ -5,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.sc2006.spaze.data.local.entity.CarparkEntity
 import com.sc2006.spaze.data.local.entity.RecentSearchEntity
 import com.sc2006.spaze.data.repository.CarparkRepository
+import com.sc2006.spaze.data.local.PreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -14,14 +16,10 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/**
- * Search ViewModel
- * Implements: Search, Filter, and Sort functionality
- * Corresponds to SearchController in class diagram
- */
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val carparkRepository: CarparkRepository
+    private val carparkRepository: CarparkRepository,
+    private val preferences: PreferencesManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SearchUiState())
@@ -36,23 +34,22 @@ class SearchViewModel @Inject constructor(
     private val _allCarparks = MutableStateFlow<List<CarparkEntity>>(emptyList())
 
     init {
-        loadAllCarparks()
-    }
-
-    /**
-     * Load all carparks for filtering
-     */
-    private fun loadAllCarparks() {
         viewModelScope.launch {
+            // One-time bootstrap
+            if (preferences.isFirstLaunch()) {
+                carparkRepository.initializeCarparksFromCsv()
+                preferences.setFirstLaunchComplete()
+            }
+            // Try refreshing availability in background (ok to fail silently)
+            runCatching { carparkRepository.refreshCarparkAvailability() }
+
+            // Keep local cache for filtering/sorting
             carparkRepository.getAllCarparks().collect { carparks ->
                 _allCarparks.value = carparks
             }
         }
     }
 
-    /**
-     * Load recent searches for user
-     */
     fun loadRecentSearches(userId: String) {
         viewModelScope.launch {
             carparkRepository.getRecentSearches(userId, limit = 10).collect { searches ->
@@ -61,9 +58,6 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Search carparks by query
-     */
     fun searchCarparks(userId: String, query: String) {
         viewModelScope.launch {
             try {
@@ -90,54 +84,35 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Apply filters to search results
-     */
     private fun applyFiltersAndSort(carparks: List<CarparkEntity>): List<CarparkEntity> {
         var filtered = carparks
+        val s = _uiState.value
 
-        val currentState = _uiState.value
-
-        // Filter by availability
-        if (currentState.filterByAvailability) {
-            filtered = filtered.filter {
-                it.getTotalAvailableLots() >= currentState.minAvailableLots
-            }
+        if (s.filterByAvailability) {
+            filtered = filtered.filter { it.getTotalAvailableLots() >= s.minAvailableLots }
         }
 
-        // Filter by lot type
-        if (currentState.selectedLotType != LotType.ALL) {
-            filtered = when (currentState.selectedLotType) {
+        if (s.selectedLotType != LotType.ALL) {
+            filtered = when (s.selectedLotType) {
                 LotType.CAR -> filtered.filter { it.totalLotsC > 0 }
-                LotType.MOTORCYCLE -> filtered.filter { it.totalLotsH > 0 }
-                LotType.HEAVY_VEHICLE -> filtered.filter { it.totalLotsY > 0 }
+                LotType.MOTORCYCLE -> filtered.filter { it.totalLotsY > 0 } // Y = motorcycle
+                LotType.HEAVY_VEHICLE -> filtered.filter { it.totalLotsH > 0 } // H = heavy
                 LotType.SEASON -> filtered.filter { it.totalLotsS > 0 }
                 else -> filtered
             }
         }
 
-        // Filter by price (if we had pricing data)
-        // This is a placeholder for future implementation
-        if (currentState.maxPrice != null) {
-            // filtered = filtered.filter { it.price <= currentState.maxPrice }
+        if (s.maxPrice != null) {
+            // Placeholder for future pricing
         }
 
-        // Apply sorting
-        filtered = when (currentState.sortBy) {
-            SortOption.DISTANCE -> {
-                if (currentState.userLatitude != null && currentState.userLongitude != null) {
+        filtered = when (s.sortBy) {
+            SortOption.DISTANCE ->
+                if (s.userLatitude != null && s.userLongitude != null) {
                     filtered.sortedBy {
-                        calculateDistance(
-                            currentState.userLatitude,
-                            currentState.userLongitude,
-                            it.latitude,
-                            it.longitude
-                        )
+                        calculateDistance(s.userLatitude, s.userLongitude, it.latitude, it.longitude)
                     }
-                } else {
-                    filtered
-                }
-            }
+                } else filtered
             SortOption.AVAILABILITY -> filtered.sortedByDescending { it.getTotalAvailableLots() }
             SortOption.NAME -> filtered.sortedBy { it.address }
             SortOption.NONE -> filtered
@@ -146,126 +121,70 @@ class SearchViewModel @Inject constructor(
         return filtered
     }
 
-    /**
-     * Calculate distance between two points using Haversine formula
-     */
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val R = 6371.0 // Earth's radius in km
-
+        val R = 6371.0
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
-
         val a = sin(dLat / 2) * sin(dLat / 2) +
                 cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
                 sin(dLon / 2) * sin(dLon / 2)
-
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-
         return R * c
     }
 
-    /**
-     * Update filter: minimum available lots
-     */
     fun setMinAvailableLots(minLots: Int) {
-        _uiState.update {
-            it.copy(
-                filterByAvailability = minLots > 0,
-                minAvailableLots = minLots
-            )
-        }
+        _uiState.update { it.copy(filterByAvailability = minLots > 0, minAvailableLots = minLots) }
         refreshResults()
     }
 
-    /**
-     * Update filter: lot type
-     */
     fun setLotTypeFilter(lotType: LotType) {
         _uiState.update { it.copy(selectedLotType = lotType) }
         refreshResults()
     }
 
-    /**
-     * Update filter: max price
-     */
     fun setMaxPrice(price: Double?) {
         _uiState.update { it.copy(maxPrice = price) }
         refreshResults()
     }
 
-    /**
-     * Update sort option
-     */
     fun setSortOption(sortBy: SortOption) {
         _uiState.update { it.copy(sortBy = sortBy) }
         refreshResults()
     }
 
-    /**
-     * Update user location for distance calculations
-     */
     fun updateUserLocation(latitude: Double, longitude: Double) {
-        _uiState.update {
-            it.copy(userLatitude = latitude, userLongitude = longitude)
-        }
-        if (_uiState.value.sortBy == SortOption.DISTANCE) {
-            refreshResults()
-        }
+        _uiState.update { it.copy(userLatitude = latitude, userLongitude = longitude) }
+        if (_uiState.value.sortBy == SortOption.DISTANCE) refreshResults()
     }
 
-    /**
-     * Clear all filters
-     */
     fun clearFilters() {
         _uiState.update {
-            SearchUiState(
-                searchQuery = it.searchQuery,
-                userLatitude = it.userLatitude,
-                userLongitude = it.userLongitude
-            )
+            SearchUiState(searchQuery = it.searchQuery, userLatitude = it.userLatitude, userLongitude = it.userLongitude)
         }
         refreshResults()
     }
 
-    /**
-     * Clear search
-     */
     fun clearSearch() {
         _searchResults.value = emptyList()
         _uiState.update { SearchUiState() }
     }
 
-    /**
-     * Refresh results with current filters
-     */
     private fun refreshResults() {
         if (_searchResults.value.isNotEmpty() || _uiState.value.searchQuery.isNotBlank()) {
             _searchResults.value = applyFiltersAndSort(_searchResults.value)
         }
     }
 
-    /**
-     * Clear recent searches
-     */
     fun clearRecentSearches(userId: String) {
-        viewModelScope.launch {
-            carparkRepository.clearRecentSearches(userId)
-        }
+        viewModelScope.launch { carparkRepository.clearRecentSearches(userId) }
     }
 
-    /**
-     * Perform search from recent search item
-     */
     fun searchFromRecent(userId: String, recentSearch: RecentSearchEntity) {
         when (recentSearch.searchType) {
             RecentSearchEntity.SearchType.ADDRESS,
             RecentSearchEntity.SearchType.POSTAL_CODE,
-            RecentSearchEntity.SearchType.PLACE_NAME -> {
-                searchCarparks(userId, recentSearch.searchQuery)
-            }
-            RecentSearchEntity.SearchType.CARPARK_VIEW -> {
-                // This is handled differently - navigate to carpark details
-            }
+            RecentSearchEntity.SearchType.PLACE_NAME -> searchCarparks(userId, recentSearch.searchQuery)
+            RecentSearchEntity.SearchType.CARPARK_VIEW -> { /* navigate to details externally */ }
         }
     }
 }
@@ -274,32 +193,14 @@ data class SearchUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val searchQuery: String = "",
-
-    // Filters
     val filterByAvailability: Boolean = false,
     val minAvailableLots: Int = 0,
     val selectedLotType: LotType = LotType.ALL,
     val maxPrice: Double? = null,
-
-    // Sort
     val sortBy: SortOption = SortOption.NONE,
-
-    // User location for distance calculation
     val userLatitude: Double? = null,
     val userLongitude: Double? = null
 )
 
-enum class LotType {
-    ALL,
-    CAR,           // C
-    MOTORCYCLE,    // H
-    HEAVY_VEHICLE, // Y
-    SEASON         // S
-}
-
-enum class SortOption {
-    NONE,
-    DISTANCE,
-    AVAILABILITY,
-    NAME
-}
+enum class LotType { ALL, CAR, MOTORCYCLE, HEAVY_VEHICLE, SEASON }
+enum class SortOption { NONE, DISTANCE, AVAILABILITY, NAME }
