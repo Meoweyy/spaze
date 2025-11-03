@@ -14,7 +14,8 @@ import com.sc2006.spaze.presentation.viewmodel.AuthViewModel
 fun LoginScreen(
     viewModel: AuthViewModel = hiltViewModel(),
     onNavigateToSignUp: () -> Unit,
-    onNavigateToHome: () -> Unit
+    onNavigateToHome: () -> Unit,
+    onNavigateToForgotPassword: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -67,15 +68,18 @@ fun LoginScreen(
         ) {
             Text("Login")
         }
+        TextButton(onClick = onNavigateToForgotPassword) {
+            Text("Forgot Password?")
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(2.dp))
 
         TextButton(onClick = onNavigateToSignUp) {
             Text("Don't have an account? Sign Up")
         }
 
         uiState.error?.let { error ->
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = error,
                 color = MaterialTheme.colorScheme.error,

@@ -15,6 +15,8 @@ import com.sc2006.spaze.presentation.viewmodel.AuthViewModel
 sealed class Screen(val route: String) {
     object Login : Screen("login")
     object SignUp : Screen("signup")
+
+    object ForgotPassword : Screen("forgot_password")
     object Home : Screen("home")
     object Search : Screen("search")
     object Favorites : Screen("favorites")
@@ -56,7 +58,11 @@ fun SpazeNavigation(
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
+                },
+                onNavigateToForgotPassword = {
+                    navController.navigate(Screen.ForgotPassword.route)
                 }
+
             )
         }
 
