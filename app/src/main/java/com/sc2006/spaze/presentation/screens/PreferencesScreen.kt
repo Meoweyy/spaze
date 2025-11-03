@@ -25,6 +25,14 @@ fun PreferencesScreen(onNavigateBack: () -> Unit) {
         .collectAsState(initial = false)
     val searchRadius by PreferencesDataStore.getSearchRadius(context)
         .collectAsState(initial = 5f)
+    val liveLocationEnabled by PreferencesDataStore.getLiveLocationEnabled(context)
+        .collectAsState(initial = false)
+    val referenceLat by PreferencesDataStore.getReferenceLat(context)
+        .collectAsState(initial = null)
+    val referenceLng by PreferencesDataStore.getReferenceLng(context)
+        .collectAsState(initial = null)
+    val referenceName by PreferencesDataStore.getReferenceName(context)
+        .collectAsState(initial = null)
     
     Scaffold(
         topBar = {
@@ -88,10 +96,65 @@ fun PreferencesScreen(onNavigateBack: () -> Unit) {
                     }
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(24.dp))
             Divider()
             Spacer(modifier = Modifier.height(24.dp))
+
+            // Live Location Section
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Live location",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = if (liveLocationEnabled) "Uses device GPS" else "Uses your reference location",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = liveLocationEnabled,
+                    onCheckedChange = { enabled ->
+                        scope.launch {
+                            PreferencesDataStore.setLiveLocationEnabled(context, enabled)
+                        }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            Divider()
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Reference Location Section
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Reference location",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = when {
+                        referenceName != null -> referenceName!!
+                        referenceLat != null && referenceLng != null -> "${referenceLat}, ${referenceLng}"
+                        else -> "Not set"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (referenceLat == null || referenceLng == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Tip: Open a carpark and tap ‘Set as Reference Location’ to use that marker.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             
             // Search Radius Section
             Column(modifier = Modifier.fillMaxWidth()) {

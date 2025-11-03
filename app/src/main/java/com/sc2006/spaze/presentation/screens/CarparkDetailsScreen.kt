@@ -10,6 +10,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+import com.sc2006.spaze.data.preferences.PreferencesDataStore
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sc2006.spaze.presentation.viewmodel.*
 
@@ -27,6 +30,8 @@ fun CarparkDetailsScreen(
     val carpark by detailsViewModel.carpark.collectAsState()
     val auth by authViewModel.uiState.collectAsState()
     val userId = auth.currentUser?.userID ?: ""
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(userId, carparkId) {
         if (userId.isNotBlank() && carparkId.isNotBlank()) {
@@ -111,6 +116,23 @@ fun CarparkDetailsScreen(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Get Directions") }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = {
+                    val cp = carpark ?: return@OutlinedButton
+                    scope.launch {
+                        PreferencesDataStore.setReferenceLatLng(
+                            context = context,
+                            latitude = cp.latitude,
+                            longitude = cp.longitude,
+                            name = cp.address
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Set as Reference Location") }
         }
     }
 }

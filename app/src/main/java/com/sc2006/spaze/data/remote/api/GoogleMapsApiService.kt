@@ -17,7 +17,10 @@ interface GoogleMapsApiService {
     suspend fun getDirections(
         @Query("origin") origin: String,
         @Query("destination") destination: String,
-        @Query("mode") mode: String = "driving", // driving, walking, transit
+        @Query("mode") mode: String = "driving", // driving, walking, transit, bicycling
+        @Query("alternatives") alternatives: Boolean = false,
+        @Query("departure_time") departureTime: String? = null,
+        @Query("traffic_model") trafficModel: String? = "best_guess", // best_guess, pessimistic, optimistic
         @Query("key") apiKey: String
     ): Response<DirectionsResponse>
 
@@ -78,7 +81,11 @@ data class Route(
     @SerializedName("legs")
     val legs: List<Leg>,
     @SerializedName("overview_polyline")
-    val overviewPolyline: OverviewPolyline
+    val overviewPolyline: OverviewPolyline,
+    @SerializedName("summary")
+    val summary: String,
+    @SerializedName("warnings")
+    val warnings: List<String>? = null
 )
 
 data class Leg(
@@ -89,7 +96,13 @@ data class Leg(
     @SerializedName("start_address")
     val startAddress: String,
     @SerializedName("end_address")
-    val endAddress: String
+    val endAddress: String,
+    @SerializedName("start_location")
+    val startLocation: Location,
+    @SerializedName("end_location")
+    val endLocation: Location,
+    @SerializedName("steps")
+    val steps: List<Step>
 )
 
 data class Distance(
@@ -109,6 +122,25 @@ data class Duration(
 data class OverviewPolyline(
     @SerializedName("points")
     val points: String
+)
+
+data class Step(
+    @SerializedName("distance")
+    val distance: Distance,
+    @SerializedName("duration")
+    val duration: Duration,
+    @SerializedName("start_location")
+    val startLocation: Location,
+    @SerializedName("end_location")
+    val endLocation: Location,
+    @SerializedName("html_instructions")
+    val htmlInstructions: String,
+    @SerializedName("polyline")
+    val polyline: OverviewPolyline,
+    @SerializedName("travel_mode")
+    val travelMode: String,
+    @SerializedName("maneuver")
+    val maneuver: String? = null
 )
 
 data class DistanceMatrixResponse(
