@@ -17,6 +17,6 @@ interface CarparkApiService {
     suspend fun getCarparkAvailability(): Response<DataGovCarparkResponse>
 
     companion object {
-        const val BASE_URL = "https://data.gov.sg/"
+        const val BASE_URL = "https://api.data.gov.sg/"
     }
 }
