@@ -20,7 +20,11 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
-        viewModel.loadProfile("user123")
+        viewModel.loadCurrentUser()
+    }
+
+    LaunchedEffect(uiState.isSignedOut) {
+        if (uiState.isSignedOut) onNavigateToLogin()
     }
 
     Scaffold(
@@ -29,7 +33,7 @@ fun ProfileScreen(
                 title = { Text("Profile") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -41,20 +45,26 @@ fun ProfileScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
+            if (uiState.isLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            uiState.error?.let { err ->
+                Text(
+                    text = err,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             uiState.user?.let { user ->
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = user.userName,
-                            style = MaterialTheme.typography.headlineSmall
-                        )
+                        Text(text = user.userName, style = MaterialTheme.typography.headlineSmall)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = user.email,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Text(text = user.email, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -62,38 +72,33 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { },
+                onClick = {
+                    // Example: show edit dialog or navigate to an EditProfile screen and then:
+                    // viewModel.updateProfile(newUserName, newEmail)
+                },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Edit Profile")
-            }
+            ) { Text("Edit Profile") }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { },
+                onClick = { /* TODO: Change password flow */ },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Change Password")
-            }
+            ) { Text("Change Password") }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { },
+                onClick = { /* TODO: Open Preferences screen */ },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Preferences")
-            }
+            ) { Text("Preferences") }
 
             Spacer(modifier = Modifier.weight(1f))
 
             OutlinedButton(
-                onClick = onNavigateToLogin,
+                onClick = { viewModel.signOut() },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Logout")
-            }
+            ) { Text("Logout") }
         }
     }
 }

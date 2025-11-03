@@ -5,7 +5,6 @@ import androidx.room.PrimaryKey
 
 /**
  * Budget Entity - Tracks user's monthly parking budget
- * Supports the Budgeting and Cost Controls functional requirements
  */
 @Entity(tableName = "budgets")
 data class BudgetEntity(
@@ -18,9 +17,9 @@ data class BudgetEntity(
     val currentMonthSpending: Double = 0.0,
     val currency: String = "SGD",
 
-    // Notification thresholds
-    val warningThreshold: Double = 0.8, // 80%
-    val criticalThreshold: Double = 1.0, // 100%
+    // Notification thresholds (fractions: 0.8 => 80%)
+    val warningThreshold: Double = 0.8,
+    val criticalThreshold: Double = 1.0,
 
     // Tracking
     val budgetMonth: String, // Format: "YYYY-MM"
@@ -30,118 +29,40 @@ data class BudgetEntity(
     val hasWarningBeenSent: Boolean = false,
     val hasCriticalBeenSent: Boolean = false
 ) {
-    /**
-     * Get remaining budget
-     */
-    fun getRemainingBudget(): Double {
-        return monthlyBudget - currentMonthSpending
-    }
 
-    /**
-     * Get budget usage percentage
-     */
-    fun getBudgetUsagePercentage(): Double {
-        return if (monthlyBudget > 0) {
-            (currentMonthSpending / monthlyBudget) * 100
-        } else {
-            0.0
-        }
-    }
+    fun getRemainingBudget(): Double = monthlyBudget - currentMonthSpending
 
-    /**
-     * Check if budget is exceeded
-     */
-    fun isBudgetExceeded(): Boolean {
-        return currentMonthSpending >= monthlyBudget
-    }
+    fun getBudgetUsagePercentage(): Double =
+        if (monthlyBudget > 0) (currentMonthSpending / monthlyBudget) * 100 else 0.0
 
-    /**
-     * Check if warning threshold reached
-     */
+    fun isBudgetExceeded(): Boolean = currentMonthSpending >= monthlyBudget
+
     fun shouldSendWarning(): Boolean {
         if (hasWarningBeenSent) return false
         return currentMonthSpending >= (monthlyBudget * warningThreshold)
     }
 
-    /**
-     * Check if critical threshold reached
-     */
     fun shouldSendCritical(): Boolean {
         if (hasCriticalBeenSent) return false
         return currentMonthSpending >= (monthlyBudget * criticalThreshold)
     }
 
-    /**
-     * Add spending to current month
-     */
-    fun addSpending(amount: Double): BudgetEntity {
-        return this.copy(
-            currentMonthSpending = currentMonthSpending + amount,
-            lastUpdated = System.currentTimeMillis()
-        )
-    }
+    fun addSpending(amount: Double): BudgetEntity =
+        copy(currentMonthSpending = currentMonthSpending + amount, lastUpdated = System.currentTimeMillis())
 
-    /**
-     * Remove spending from current month
-     */
-    fun removeSpending(amount: Double): BudgetEntity {
-        return this.copy(
-            currentMonthSpending = maxOf(0.0, currentMonthSpending - amount),
-            lastUpdated = System.currentTimeMillis()
-        )
-    }
+    fun removeSpending(amount: Double): BudgetEntity =
+        copy(currentMonthSpending = maxOf(0.0, currentMonthSpending - amount), lastUpdated = System.currentTimeMillis())
 
-    /**
-     * Update monthly budget
-     */
-    fun updateMonthlyBudget(newBudget: Double): BudgetEntity {
-        return this.copy(
-            monthlyBudget = newBudget,
-            lastUpdated = System.currentTimeMillis()
-        )
-    }
+    fun updateMonthlyBudget(newBudget: Double): BudgetEntity =
+        copy(monthlyBudget = newBudget, lastUpdated = System.currentTimeMillis())
 
-    /**
-     * Get status based on spending
-     */
-    fun getBudgetStatus(): BudgetStatus {
-        val percentage = getBudgetUsagePercentage()
-        return when {
-            percentage >= 100 -> BudgetStatus.EXCEEDED
-            percentage >= 80 -> BudgetStatus.WARNING
-            percentage >= 50 -> BudgetStatus.MODERATE
-            else -> BudgetStatus.HEALTHY
-        }
-    }
+    fun getFormattedSummary(): String =
+        String.format("%s %.2f / %.2f (%.1f%%)", currency, currentMonthSpending, monthlyBudget, getBudgetUsagePercentage())
 
-    /**
-     * Get formatted budget summary
-     */
-    fun getFormattedSummary(): String {
-        return String.format(
-            "%s %.2f / %.2f (%.1f%%)",
-            currency,
-            currentMonthSpending,
-            monthlyBudget,
-            getBudgetUsagePercentage()
-        )
-    }
-
-    enum class BudgetStatus {
-        HEALTHY,
-        MODERATE,
-        WARNING,
-        EXCEEDED
-    }
+    enum class BudgetStatus { HEALTHY, MODERATE, WARNING, EXCEEDED }
 
     companion object {
-        /**
-         * Create a new budget for the current month
-         */
-        fun create(
-            userID: String,
-            monthlyBudget: Double
-        ): BudgetEntity {
+        fun create(userID: String, monthlyBudget: Double): BudgetEntity {
             val currentMonth = getCurrentMonth()
             return BudgetEntity(
                 budgetID = "${userID}_$currentMonth",
@@ -151,9 +72,6 @@ data class BudgetEntity(
             )
         }
 
-        /**
-         * Get current month in YYYY-MM format
-         */
         private fun getCurrentMonth(): String {
             val calendar = java.util.Calendar.getInstance()
             val year = calendar.get(java.util.Calendar.YEAR)

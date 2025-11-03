@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Authentication Repository (offline / fake auth)
@@ -24,6 +26,31 @@ class AuthRepository @Inject constructor(
     // The actual session persistence happens via PreferencesManager + Room
     private val accounts = mutableMapOf<String, String>() // email -> password
     private val emailToUid = mutableMapOf<String, String>()
+
+    fun currentUserId(): String? = preferencesManager.getCurrentUserId()
+
+    /** Update username/email for the user entity */
+    suspend fun updateUserProfile(
+        userId: String,
+        userName: String,
+        email: String
+    ): Result<UserEntity> = runCatching {
+        withContext(Dispatchers.IO) {
+            val existing = userDao.getUserById(userId) ?: error("User not found")
+            // If email changed, ensure uniqueness
+            val duplicate = userDao.getUserByEmail(email)
+            if (duplicate != null && duplicate.userID != userId) {
+                error("Email is already used by another account")
+            }
+
+            val updated = existing.copy(
+                userName = userName,
+                email = email
+            )
+            userDao.updateUser(updated)
+            updated
+        }
+    }
 
     /** Get current authenticated user (if any) - restored from PreferencesManager */
     suspend fun getCurrentUser(): UserEntity? {

@@ -10,15 +10,13 @@ import com.sc2006.spaze.data.repository.AuthRepository
 import com.sc2006.spaze.data.repository.CarparkRepository
 import com.sc2006.spaze.data.repository.ParkingSessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * Profile ViewModel
- * Implements: User Profile Management, Settings, Recent Activity
- * Corresponds to ProfileController in class diagram
- */
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
@@ -38,81 +36,64 @@ class ProfileViewModel @Inject constructor(
     private val _parkingHistory = MutableStateFlow<List<ParkingSessionEntity>>(emptyList())
     val parkingHistory: StateFlow<List<ParkingSessionEntity>> = _parkingHistory.asStateFlow()
 
-    /**
-     * Load complete profile data
-     */
+    init {
+        // Optionally auto-load the current user at startup
+        loadCurrentUser()
+    }
+
+    /** Loads the currently authenticated user's profile and recent activity */
+    fun loadCurrentUser() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            val current = authRepository.getCurrentUser()
+            if (current == null) {
+                _uiState.update { it.copy(isLoading = false, error = "No active session") }
+                return@launch
+            }
+
+            // Start a collection for live updates to the user entity
+            viewModelScope.launch {
+                authRepository.getCurrentUserFlow(current.userID).collect { user ->
+                    _uiState.update { it.copy(user = user) }
+                }
+            }
+
+            // Load additional profile data concurrently
+            loadRecentActivity(current.userID)
+
+            _uiState.update { it.copy(isLoading = false) }
+        }
+    }
+
+    /** (Kept for compatibility) explicit-load by userId if needed elsewhere */
     fun loadProfile(userId: String) {
         viewModelScope.launch {
-            try {
-                _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(isLoading = true, error = null) }
 
-                // Load user profile
+            // Collect user stream without blocking other work
+            viewModelScope.launch {
                 authRepository.getCurrentUserFlow(userId).collect { user ->
-                    _uiState.update { it.copy(user = user, isLoading = false) }
-                }
-
-                // Load additional profile data
-                loadRecentActivity(userId)
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(isLoading = false, error = e.message ?: "Failed to load profile")
+                    _uiState.update { it.copy(user = user) }
                 }
             }
+
+            loadRecentActivity(userId)
+            _uiState.update { it.copy(isLoading = false) }
         }
     }
 
-    /**
-     * Load recent activity (searches, viewed carparks, parking sessions)
-     */
     private fun loadRecentActivity(userId: String) {
         viewModelScope.launch {
-            // Load recent searches
             carparkRepository.getRecentSearches(userId, limit = 10).collect { searches ->
                 _recentSearches.value = searches
             }
         }
-
-        viewModelScope.launch {
-            // Load recently viewed carparks
-            carparkRepository.getRecentlyViewedCarparks(limit = 10).collect { carparks ->
-                _recentlyViewedCarparks.value = carparks
-            }
-        }
-
-        viewModelScope.launch {
-            // Load parking history
-            parkingSessionRepository.getRecentSessions(userId, limit = 20).collect { sessions ->
-                _parkingHistory.value = sessions
-            }
-        }
-    }
-
-    /**
-     * Reload recent searches only
-     */
-    fun loadRecentSearches(userId: String) {
-        viewModelScope.launch {
-            carparkRepository.getRecentSearches(userId, limit = 10).collect { searches ->
-                _recentSearches.value = searches
-            }
-        }
-    }
-
-    /**
-     * Reload recently viewed carparks only
-     */
-    fun loadRecentlyViewedCarparks() {
         viewModelScope.launch {
             carparkRepository.getRecentlyViewedCarparks(limit = 10).collect { carparks ->
                 _recentlyViewedCarparks.value = carparks
             }
         }
-    }
-
-    /**
-     * Reload parking history only
-     */
-    fun loadParkingHistory(userId: String) {
         viewModelScope.launch {
             parkingSessionRepository.getRecentSessions(userId, limit = 20).collect { sessions ->
                 _parkingHistory.value = sessions
@@ -120,192 +101,92 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Update user profile information
-     */
-    fun updateProfile(userId: String, userName: String, email: String) {
+    /** Update user profile information (username/email) */
+    fun updateProfile(userName: String, email: String) {
+        val userId = authRepository.currentUserId() ?: run {
+            _uiState.update { it.copy(error = "No active session") }
+            return
+        }
+
         viewModelScope.launch {
-            try {
-                _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(isLoading = true, error = null) }
 
-                // Get current user
-                val currentUser = authRepository.getCurrentUser()
-                    ?: throw Exception("User not found")
-
-                // Update user profile (this needs to be implemented in AuthRepository)
-                // For now, we just update preferences
-                val preferences = mapOf(
-                    "userName" to userName,
-                    "email" to email
-                )
-
-                val result = authRepository.updateUserPreferences(userId, preferences)
-                result.fold(
-                    onSuccess = {
-                        _uiState.update { it.copy(isLoading = false, updateSuccess = true) }
-                    },
-                    onFailure = { error ->
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                error = error.message ?: "Failed to update profile"
-                            )
-                        }
+            val result = authRepository.updateUserProfile(userId, userName, email)
+            result.fold(
+                onSuccess = {
+                    _uiState.update { it.copy(isLoading = false, updateSuccess = true) }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(isLoading = false, error = error.message ?: "Failed to update profile")
                     }
-                )
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "Failed to update profile"
-                    )
                 }
-            }
+            )
         }
     }
 
-    /**
-     * Update user preferences (settings)
-     */
-    fun updatePreferences(userId: String, preferences: Map<String, Any>) {
+    fun updatePreferences(preferences: Map<String, Any>) {
+        val userId = authRepository.currentUserId() ?: run {
+            _uiState.update { it.copy(error = "No active session") }
+            return
+        }
         viewModelScope.launch {
-            try {
-                val result = authRepository.updateUserPreferences(userId, preferences)
-                result.fold(
-                    onSuccess = {
-                        _uiState.update { it.copy(updateSuccess = true) }
-                    },
-                    onFailure = { error ->
-                        _uiState.update {
-                            it.copy(error = error.message ?: "Failed to update preferences")
-                        }
-                    }
-                )
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(error = e.message ?: "Failed to update preferences")
-                }
-            }
+            val result = authRepository.updateUserPreferences(userId, preferences)
+            result.fold(
+                onSuccess = { _uiState.update { it.copy(updateSuccess = true) } },
+                onFailure = { e -> _uiState.update { it.copy(error = e.message ?: "Failed to update preferences") } }
+            )
         }
     }
 
-    /**
-     * Change password
-     */
     fun changePassword(oldPassword: String, newPassword: String) {
         viewModelScope.launch {
-            try {
-                _uiState.update { it.copy(isLoading = true, error = null) }
-
-                // TODO: Implement password change in AuthRepository
-                // For now, this is a placeholder
-
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "Password change not yet implemented"
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "Failed to change password"
-                    )
-                }
+            _uiState.update {
+                it.copy(isLoading = false, error = "Password change not yet implemented")
             }
         }
     }
 
-    /**
-     * Clear recent searches
-     */
-    fun clearRecentSearches(userId: String) {
+    fun clearRecentSearches() {
+        val userId = authRepository.currentUserId() ?: return
         viewModelScope.launch {
             try {
                 carparkRepository.clearRecentSearches(userId)
                 _recentSearches.value = emptyList()
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(error = e.message ?: "Failed to clear recent searches")
-                }
+                _uiState.update { it.copy(error = e.message ?: "Failed to clear recent searches") }
             }
         }
     }
 
-    /**
-     * Clear parking history
-     */
-    fun clearParkingHistory(userId: String) {
+    fun clearParkingHistory() {
+        val userId = authRepository.currentUserId() ?: return
         viewModelScope.launch {
-            try {
-                val result = parkingSessionRepository.deleteSessionHistory(userId)
-                result.fold(
-                    onSuccess = {
-                        _parkingHistory.value = emptyList()
-                    },
-                    onFailure = { error ->
-                        _uiState.update {
-                            it.copy(error = error.message ?: "Failed to clear parking history")
-                        }
-                    }
-                )
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(error = e.message ?: "Failed to clear parking history")
-                }
-            }
+            val result = parkingSessionRepository.deleteSessionHistory(userId)
+            result.fold(
+                onSuccess = { _parkingHistory.value = emptyList() },
+                onFailure = { e -> _uiState.update { it.copy(error = e.message ?: "Failed to clear parking history") } }
+            )
         }
     }
 
-    /**
-     * Sign out
-     */
     fun signOut() {
         viewModelScope.launch {
-            try {
-                _uiState.update { it.copy(isLoading = true, error = null) }
-
-                val result = authRepository.signOut()
-                result.fold(
-                    onSuccess = {
-                        _uiState.update {
-                            it.copy(isLoading = false, user = null, isSignedOut = true)
-                        }
-                    },
-                    onFailure = { error ->
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                error = error.message ?: "Failed to sign out"
-                            )
-                        }
-                    }
-                )
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "Failed to sign out"
-                    )
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            val result = authRepository.signOut()
+            result.fold(
+                onSuccess = {
+                    _uiState.update { it.copy(isLoading = false, user = null, isSignedOut = true) }
+                },
+                onFailure = { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message ?: "Failed to sign out") }
                 }
-            }
+            )
         }
     }
 
-    /**
-     * Clear update success flag
-     */
-    fun clearUpdateSuccess() {
-        _uiState.update { it.copy(updateSuccess = false) }
-    }
-
-    /**
-     * Clear error message
-     */
-    fun clearError() {
-        _uiState.update { it.copy(error = null) }
-    }
+    fun clearUpdateSuccess() { _uiState.update { it.copy(updateSuccess = false) } }
+    fun clearError() { _uiState.update { it.copy(error = null) } }
 }
 
 data class ProfileUiState(
