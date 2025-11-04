@@ -6,6 +6,7 @@ import com.sc2006.spaze.data.local.entity.CarparkEntity
 import com.sc2006.spaze.data.repository.CarparkRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -43,6 +44,7 @@ class FavoritesViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -72,6 +74,7 @@ class FavoritesViewModel @Inject constructor(
                         }
                     },
                     onFailure = { error ->
+                        if (error is CancellationException) return@fold
                         _uiState.update {
                             it.copy(
                                 error = error.message ?: "Failed to add to favorites"
@@ -80,6 +83,7 @@ class FavoritesViewModel @Inject constructor(
                     }
                 )
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(
                         error = e.message ?: "Failed to add to favorites"
@@ -108,6 +112,7 @@ class FavoritesViewModel @Inject constructor(
                         }
                     },
                     onFailure = { error ->
+                        if (error is CancellationException) return@fold
                         _uiState.update {
                             it.copy(
                                 error = error.message ?: "Failed to remove from favorites"
@@ -116,6 +121,7 @@ class FavoritesViewModel @Inject constructor(
                     }
                 )
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(
                         error = e.message ?: "Failed to remove from favorites"

@@ -11,6 +11,7 @@ import com.sc2006.spaze.data.repository.CarparkRepository
 import com.sc2006.spaze.data.repository.ParkingSessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -117,6 +118,7 @@ class ProfileViewModel @Inject constructor(
                     _uiState.update { it.copy(isLoading = false, updateSuccess = true) }
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) return@fold
                     _uiState.update {
                         it.copy(isLoading = false, error = error.message ?: "Failed to update profile")
                     }
@@ -134,7 +136,10 @@ class ProfileViewModel @Inject constructor(
             val result = authRepository.updateUserPreferences(userId, preferences)
             result.fold(
                 onSuccess = { _uiState.update { it.copy(updateSuccess = true) } },
-                onFailure = { e -> _uiState.update { it.copy(error = e.message ?: "Failed to update preferences") } }
+                onFailure = { e ->
+                    if (e is CancellationException) return@fold
+                    _uiState.update { it.copy(error = e.message ?: "Failed to update preferences") }
+                }
             )
         }
     }
@@ -159,9 +164,10 @@ class ProfileViewModel @Inject constructor(
                     }
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) return@fold
                     _uiState.update {
                         it.copy(
-                            isLoading = false, 
+                            isLoading = false,
                             error = error.message ?: "Failed to change password"
                         )
                     }
@@ -177,6 +183,7 @@ class ProfileViewModel @Inject constructor(
                 carparkRepository.clearRecentSearches(userId)
                 _recentSearches.value = emptyList()
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update { it.copy(error = e.message ?: "Failed to clear recent searches") }
             }
         }
@@ -188,7 +195,10 @@ class ProfileViewModel @Inject constructor(
             val result = parkingSessionRepository.deleteSessionHistory(userId)
             result.fold(
                 onSuccess = { _parkingHistory.value = emptyList() },
-                onFailure = { e -> _uiState.update { it.copy(error = e.message ?: "Failed to clear parking history") } }
+                onFailure = { e ->
+                    if (e is CancellationException) return@fold
+                    _uiState.update { it.copy(error = e.message ?: "Failed to clear parking history") }
+                }
             )
         }
     }
@@ -202,6 +212,7 @@ class ProfileViewModel @Inject constructor(
                     _uiState.update { it.copy(isLoading = false, user = null, isSignedOut = true) }
                 },
                 onFailure = { e ->
+                    if (e is CancellationException) return@fold
                     _uiState.update { it.copy(isLoading = false, error = e.message ?: "Failed to sign out") }
                 }
             )

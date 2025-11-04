@@ -74,7 +74,10 @@ data class DirectionsResponse(
     @SerializedName("routes")
     val routes: List<Route>,
     @SerializedName("status")
-    val status: String
+    val status: String,
+    // Present on failures like REQUEST_DENIED to explain why
+    @SerializedName("error_message")
+    val errorMessage: String? = null
 )
 
 data class Route(

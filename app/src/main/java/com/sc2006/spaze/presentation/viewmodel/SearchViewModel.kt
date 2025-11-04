@@ -8,7 +8,9 @@ import com.sc2006.spaze.data.local.entity.RecentSearchEntity
 import com.sc2006.spaze.data.repository.CarparkRepository
 import com.sc2006.spaze.data.local.PreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.atan2
@@ -22,6 +24,10 @@ class SearchViewModel @Inject constructor(
     private val preferences: PreferencesManager
 ) : ViewModel() {
 
+    companion object {
+        private const val MAX_RESULTS = 10
+    }
+
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
@@ -32,6 +38,8 @@ class SearchViewModel @Inject constructor(
     val recentSearches: StateFlow<List<RecentSearchEntity>> = _recentSearches.asStateFlow()
 
     private val _allCarparks = MutableStateFlow<List<CarparkEntity>>(emptyList())
+
+    private var searchJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -59,7 +67,9 @@ class SearchViewModel @Inject constructor(
     }
 
     fun searchCarparks(userId: String, query: String) {
-        viewModelScope.launch {
+        // Cancel any in-flight search to prevent overlapping collectors
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, error = null, searchQuery = query) }
 
@@ -72,11 +82,12 @@ class SearchViewModel @Inject constructor(
                     )
                 }
 
-                carparkRepository.searchCarparks(query).collect { results ->
+                carparkRepository.searchCarparks(query).collectLatest { results ->
                     _searchResults.value = applyFiltersAndSort(results)
                     _uiState.update { it.copy(isLoading = false) }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(isLoading = false, error = e.message ?: "Search failed")
                 }
@@ -118,7 +129,8 @@ class SearchViewModel @Inject constructor(
             SortOption.NONE -> filtered
         }
 
-        return filtered
+        // Limit results to avoid long lists while typing
+        return filtered.take(MAX_RESULTS)
     }
 
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

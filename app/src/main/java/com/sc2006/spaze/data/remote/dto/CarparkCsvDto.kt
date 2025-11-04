@@ -25,11 +25,14 @@ data class CarparkCsvDto(
      * Convert to CarparkEntity with default live data values
      */
     fun toEntity(): CarparkEntity {
-        // Convert SVY21 coordinates to WGS84 (lat/lng)
-        val (lat, lng) = convertSVY21ToWGS84(
-            xCoord.toDoubleOrNull() ?: 0.0,
-            yCoord.toDoubleOrNull() ?: 0.0
-        )
+        // Convert SVY21 coordinates (northing=y, easting=x) to WGS84 (lat/lng)
+        val x = xCoord.toDoubleOrNull() ?: 0.0
+        val y = yCoord.toDoubleOrNull() ?: 0.0
+        val (lat, lng) = try {
+            com.sc2006.spaze.data.util.Svy21.convertToLatLon(y, x)
+        } catch (e: Exception) {
+            0.0 to 0.0
+        }
 
         return CarparkEntity(
             carparkNumber = carParkNo.trim(),

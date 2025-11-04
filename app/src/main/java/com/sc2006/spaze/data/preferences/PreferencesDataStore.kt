@@ -52,13 +52,16 @@ object PreferencesDataStore {
 
     fun getSearchRadius(context: Context): Flow<Float> {
         return context.dataStore.data.map { preferences ->
-            preferences[SEARCH_RADIUS_KM] ?: 5f
+            val stored = preferences[SEARCH_RADIUS_KM] ?: 1f
+            // Clamp to 0.5–3.0 km
+            stored.coerceIn(0.5f, 3.0f)
         }
     }
 
     suspend fun setSearchRadius(context: Context, radius: Float) {
         context.dataStore.edit { preferences ->
-            preferences[SEARCH_RADIUS_KM] = radius
+            // Clamp to 0.5–3.0 km
+            preferences[SEARCH_RADIUS_KM] = radius.coerceIn(0.5f, 3.0f)
         }
     }
 

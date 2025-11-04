@@ -106,8 +106,35 @@ class CarparkRepository @Inject constructor(
                     // Check if carpark exists in database
                     val existing = carparkDao.getCarparkById(carparkNumber)
                     if (existing == null) {
-                        Log.w(TAG, "Carpark $carparkNumber from API not found in database")
-                        return@forEach
+                        Log.w(TAG, "Carpark $carparkNumber from API not found in database; inserting placeholder")
+                        // Insert a minimal placeholder so DB contains all carparks referenced by API.
+                        // Coordinates/metadata unknown here; will remain non-filterable until CSV provides them.
+                        val placeholder = com.sc2006.spaze.data.local.entity.CarparkEntity(
+                            carparkNumber = carparkNumber,
+                            address = "",
+                            xCoord = 0.0,
+                            yCoord = 0.0,
+                            latitude = 0.0,
+                            longitude = 0.0,
+                            carParkType = "",
+                            typeOfParkingSystem = "",
+                            shortTermParking = "",
+                            freeParking = "",
+                            nightParking = "",
+                            carParkDecks = 0,
+                            gantryHeight = 0.0,
+                            carParkBasement = "N",
+                            totalLotsC = 0,
+                            availableLotsC = 0,
+                            totalLotsH = 0,
+                            availableLotsH = 0,
+                            totalLotsY = 0,
+                            availableLotsY = 0,
+                            totalLotsS = 0,
+                            availableLotsS = 0,
+                            lastUpdated = 0
+                        )
+                        carparkDao.insertCarpark(placeholder)
                     }
 
                     // Parse lot availability by type
@@ -211,6 +238,13 @@ class CarparkRepository @Inject constructor(
 
     fun getAvailableCarparks(minLots: Int): Flow<List<CarparkEntity>> {
         return carparkDao.getAvailableCarparks(minLots)
+    }
+
+    /**
+     * Get total count of carparks in database
+     */
+    suspend fun getCarparkCount(): Int {
+        return carparkDao.getCarparkCount()
     }
 
     // ═══════════════════════════════════════════════════

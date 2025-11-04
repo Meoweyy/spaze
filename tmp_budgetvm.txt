@@ -1,4 +1,4 @@
-package com.sc2006.spaze.presentation.viewmodel
+﻿package com.sc2006.spaze.presentation.viewmodel
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -8,7 +8,6 @@ import com.sc2006.spaze.data.preferences.PreferencesDataStore
 import com.sc2006.spaze.data.repository.BudgetRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -61,7 +60,6 @@ class BudgetViewModel @Inject constructor(
                 }
             }
             .catch { e ->
-                if (e is CancellationException) return@catch
                 _uiState.update { it.copy(isLoading = false, error = e.message ?: "Failed to load budget") }
             }
             .launchIn(viewModelScope)
@@ -113,7 +111,6 @@ class BudgetViewModel @Inject constructor(
                     }
                 },
                 onFailure = { err ->
-                    if (err is CancellationException) return@fold
                     _uiState.update { it.copy(isLoading = false, error = err.message ?: "Failed to set budget") }
                 }
             )
@@ -134,7 +131,6 @@ class BudgetViewModel @Inject constructor(
                     // the flow observer will reflect the new spending automatically
                 },
                 onFailure = { err ->
-                    if (err is CancellationException) return@fold
                     _uiState.update { it.copy(error = err.message ?: "Failed to add spending") }
                 }
             )
@@ -154,7 +150,6 @@ class BudgetViewModel @Inject constructor(
                     _uiState.update { it.copy(successMessage = "Refund of SGD ${"%.2f".format(amount)} applied") }
                 },
                 onFailure = { err ->
-                    if (err is CancellationException) return@fold
                     _uiState.update { it.copy(error = err.message ?: "Failed to remove spending") }
                 }
             )

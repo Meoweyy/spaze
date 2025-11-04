@@ -24,7 +24,7 @@ fun PreferencesScreen(onNavigateBack: () -> Unit) {
     val darkModeEnabled by PreferencesDataStore.getDarkModeEnabled(context)
         .collectAsState(initial = false)
     val searchRadius by PreferencesDataStore.getSearchRadius(context)
-        .collectAsState(initial = 5f)
+        .collectAsState(initial = 1f)
     val liveLocationEnabled by PreferencesDataStore.getLiveLocationEnabled(context)
         .collectAsState(initial = false)
     val referenceLat by PreferencesDataStore.getReferenceLat(context)
@@ -167,7 +167,7 @@ fun PreferencesScreen(onNavigateBack: () -> Unit) {
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Text(
-                        text = "${searchRadius.toInt()} km",
+                        text = String.format("%.1f km", searchRadius),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -182,8 +182,8 @@ fun PreferencesScreen(onNavigateBack: () -> Unit) {
                             PreferencesDataStore.setSearchRadius(context, value)
                         }
                     },
-                    valueRange = 1f..10f,
-                    steps = 8
+                    valueRange = 0.5f..3.0f,
+                    steps = 0
                 )
                 
                 Row(
@@ -191,11 +191,11 @@ fun PreferencesScreen(onNavigateBack: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "1 km",
+                        text = "0.5 km",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = "10 km",
+                        text = "3 km",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

@@ -17,6 +17,7 @@ import com.sc2006.spaze.presentation.viewmodel.SearchViewModel
 import com.sc2006.spaze.presentation.viewmodel.AuthViewModel
 import com.sc2006.spaze.presentation.viewmodel.SortOption
 import com.sc2006.spaze.presentation.viewmodel.LotType
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,13 +53,24 @@ fun SearchScreen(
         ) {
             OutlinedTextField(
                 value = query,
-                onValueChange = {
-                    query = it
-                    if (userId.isNotBlank()) viewModel.searchCarparks(userId, it)
+                onValueChange = { newValue ->
+                    query = newValue
                 },
                 label = { Text("Search by address or code") },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            // Debounce search input to avoid UI thrash while typing
+            LaunchedEffect(query, userId) {
+                if (userId.isBlank()) return@LaunchedEffect
+                // Only trigger when query is non-empty, with a small debounce
+                if (query.isNotBlank()) {
+                    delay(300)
+                    viewModel.searchCarparks(userId, query)
+                } else {
+                    viewModel.clearSearch()
+                }
+            }
 
             Spacer(Modifier.height(12.dp))
 

@@ -12,6 +12,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -88,6 +89,7 @@ class ParkingSessionViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(error = e.message ?: "Failed to load session")
                 }
@@ -153,6 +155,7 @@ class ParkingSessionViewModel @Inject constructor(
                         }
                     },
                     onFailure = { error ->
+                        if (error is CancellationException) return@fold
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -162,6 +165,7 @@ class ParkingSessionViewModel @Inject constructor(
                     }
                 )
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -201,6 +205,7 @@ class ParkingSessionViewModel @Inject constructor(
                         stopCostUpdates()
                     },
                     onFailure = { error ->
+                        if (error is CancellationException) return@fold
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -210,6 +215,7 @@ class ParkingSessionViewModel @Inject constructor(
                     }
                 )
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -425,12 +431,14 @@ class ParkingSessionViewModel @Inject constructor(
                         }
                     },
                     onFailure = { error ->
+                        if (error is CancellationException) return@fold
                         _uiState.update {
                             it.copy(error = error.message ?: "Failed to delete history")
                         }
                     }
                 )
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(error = e.message ?: "Failed to delete history")
                 }

@@ -6,6 +6,7 @@ import com.sc2006.spaze.data.local.entity.CarparkEntity
 import com.sc2006.spaze.data.repository.CarparkRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.atan2
@@ -71,6 +72,7 @@ class CarparkDetailsViewModel @Inject constructor(
                     )
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -112,6 +114,7 @@ class CarparkDetailsViewModel @Inject constructor(
                             }
                         },
                         onFailure = { error ->
+                            if (error is CancellationException) return@fold
                             _uiState.update {
                                 it.copy(error = error.message ?: "Failed to remove favorite")
                             }
@@ -129,6 +132,7 @@ class CarparkDetailsViewModel @Inject constructor(
                             }
                         },
                         onFailure = { error ->
+                            if (error is CancellationException) return@fold
                             _uiState.update {
                                 it.copy(error = error.message ?: "Failed to add favorite")
                             }
@@ -136,6 +140,7 @@ class CarparkDetailsViewModel @Inject constructor(
                     )
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) return@launch
                 _uiState.update {
                     it.copy(error = e.message ?: "Failed to update favorite")
                 }

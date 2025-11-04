@@ -19,8 +19,13 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
-import com.sc2006.spaze.presentation.viewmodel.HomeViewModel
 
+import com.sc2006.spaze.data.local.entity.CarparkEntity
+import com.sc2006.spaze.data.preferences.PreferencesDataStore
+import com.sc2006.spaze.util.PolylineDecoder
+import com.sc2006.spaze.presentation.viewmodel.HomeViewModel
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.flow.first
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(
@@ -55,6 +60,12 @@ fun HomeScreen(
             locationPermissionsState.launchMultiplePermissionRequest()
         }
     }
+
+    // App context and search radius state
+    val context = LocalContext.current
+    val searchRadiusKm by remember {
+        PreferencesDataStore.getSearchRadius(context)
+    }.collectAsState(initial = 1.5f)
 
     Scaffold(
         topBar = {
@@ -102,14 +113,14 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-        ) {
+                .padding(paddingValues)){
             // Google Maps View
             Box(
-                modifier = Modifier
+        modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
             ) {
+                var selectedCarpark by remember { mutableStateOf<CarparkEntity?>(null) }
                 val userLocation = LatLng(uiState.userLatitude, uiState.userLongitude)
                 val cameraPositionState = rememberCameraPositionState {
                     position = CameraPosition.fromLatLngZoom(userLocation, 12f)
@@ -125,6 +136,8 @@ fun HomeScreen(
                     }
                 }
 
+                // Use search radius for circle overlay
+
                 GoogleMap(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
@@ -139,9 +152,17 @@ fun HomeScreen(
                     uiSettings = MapUiSettings(
                         zoomControlsEnabled = true,
                         myLocationButtonEnabled = locationPermissionsState.allPermissionsGranted
-                    )
+                    ),
+                    onMapClick = { selectedCarpark = null }
                 ) {
-                    // Add purple markers for each carpark
+                    // Draw search radius circle
+                    Circle(
+                        center = userLocation,
+                        radius = (searchRadiusKm * 1000).toDouble(), // Convert km to meters
+                        fillColor = Color.Blue.copy(alpha = 0.1f),
+                        strokeColor = Color.Blue.copy(alpha = 0.5f),
+                        strokeWidth = 2f
+                    )
                     carparks.forEach { carpark ->
                         val carparkPosition = LatLng(carpark.latitude, carpark.longitude)
                         Marker(
@@ -150,14 +171,15 @@ fun HomeScreen(
                             snippet = "Available: ${carpark.availableLotsC}/${carpark.totalLotsC}",
                             icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET),
                             onClick = {
-                                onNavigateToCarparkDetails(carpark.carparkNumber)
+                                // Select carpark; dedicated control will start navigation
+                                selectedCarpark = carpark
                                 true
                             }
                         )
                     }
 
                     // Add marker for user location (only if location tracking is not enabled,
-                    // as the map's built-in location indicator will show it)
+                    // as the map built-in location indicator will show it)
                     if (!uiState.isLocationTrackingEnabled) {
                         Marker(
                             state = MarkerState(position = userLocation),
@@ -165,22 +187,242 @@ fun HomeScreen(
                             icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
                         )
                     }
-                }
 
-                // Map type toggle button
+                    // Render route polyline and destination marker when navigating
+                    uiState.selectedRoute?.let { route ->
+                        val polylinePoints = PolylineDecoder.decode(route.encodedPolyline)
+                        Polyline(
+                            points = polylinePoints,
+                            color = Color.Blue,
+                            width = 10f
+                        )
+
+                        uiState.destinationLatLng?.let { destination ->
+                            Marker(
+                                state = MarkerState(position = destination),
+                                title = "Destination",
+                                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                            )
+                        }
+                    }
+                }
+                // Map type toggle button (moved to left to avoid blocking Google Maps controls)
                 FloatingActionButton(
                     onClick = { viewModel.toggleMapView() },
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                ) {
+                        .align(Alignment.TopStart)
+                        .padding(16.dp)) {
                     Icon(Icons.Default.Layers, "Toggle Map View")
+                }
+
+                // Dedicated Navigate control (appears when a carpark is selected, moved to left)
+                selectedCarpark?.let { target ->
+                    ExtendedFloatingActionButton(
+                        onClick = { viewModel.navigateToCarpark(target) },
+                        text = { Text("Navigate") },
+                        icon = { Icon(Icons.Default.Directions, contentDescription = "Navigate") },
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(16.dp)
+                    )
+                }
+            }
+
+            // Error message display (filter out benign cancellation errors)
+            uiState.error?.let { errorMsg ->
+                if (errorMsg.isNotBlank() &&
+                    !errorMsg.contains("cancelled", ignoreCase = true) &&
+                    !errorMsg.contains("JobCancellationException")) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Text(
+                            text = errorMsg,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+            }
+
+            // Route info display when navigating
+            uiState.routeError?.let { routeErrorMsg ->
+                if (routeErrorMsg.isNotBlank()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Navigation Error",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = routeErrorMsg,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+            }
+
+            uiState.selectedRoute?.let { route ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Route Information",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            IconButton(onClick = { viewModel.clearRoute() }) {
+                                Icon(Icons.Default.Close, "Clear route")
+                            }
+                        }
+                        if (route.legs.isNotEmpty()) {
+                            val leg = route.legs[0]
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("Distance", style = MaterialTheme.typography.labelSmall)
+                                    Text(leg.distance.text, style = MaterialTheme.typography.titleMedium)
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("Duration", style = MaterialTheme.typography.labelSmall)
+                                    Text(leg.duration.text, style = MaterialTheme.typography.titleMedium)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = route.summary,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            // Display carpark availability information
+                            uiState.selectedCarpark?.let { carpark ->
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Divider()
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Text(
+                                    text = "Carpark Details",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                Text(
+                                    text = carpark.address,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+
+                                // Show availability for each lot type
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    // Car lots (most common)
+                                    if (carpark.totalLotsC > 0) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("Car Lots", style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                text = "${carpark.availableLotsC}/${carpark.totalLotsC}",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = if (carpark.availableLotsC > 0)
+                                                    MaterialTheme.colorScheme.primary
+                                                else
+                                                    MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+                                    // Motorcycle lots
+                                    if (carpark.totalLotsY > 0) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("Motorcycle", style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                text = "${carpark.availableLotsY}/${carpark.totalLotsY}",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = if (carpark.availableLotsY > 0)
+                                                    MaterialTheme.colorScheme.primary
+                                                else
+                                                    MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+                                    // Heavy vehicle lots
+                                    if (carpark.totalLotsH > 0) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("Heavy", style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                text = "${carpark.availableLotsH}/${carpark.totalLotsH}",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = if (carpark.availableLotsH > 0)
+                                                    MaterialTheme.colorScheme.primary
+                                                else
+                                                    MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Get Directions button - opens Google Maps with navigation
+                            uiState.destinationLatLng?.let { destination ->
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = {
+                                        // Open Google Maps with directions
+                                        val intent = android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse(
+                                                "google.navigation:q=${destination.latitude},${destination.longitude}&mode=d"
+                                            )
+                                        ).apply {
+                                            setPackage("com.google.android.apps.maps")
+                                        }
+                                        try {
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            // Fallback if Google Maps not installed - use generic geo intent
+                                            val fallbackIntent = android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse(
+                                                    "geo:${destination.latitude},${destination.longitude}?q=${destination.latitude},${destination.longitude}"
+                                                )
+                                            )
+                                            context.startActivity(fallbackIntent)
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.NearMe, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Get Directions in Google Maps")
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             // Carpark info section
             Text(
-                text = "Nearby Carparks",
+                text = "Nearby Carparks (within ${searchRadiusKm}km)",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(16.dp)
             )
@@ -200,3 +442,14 @@ fun HomeScreen(
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+

@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 import com.sc2006.spaze.data.preferences.PreferencesDataStore
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sc2006.spaze.presentation.viewmodel.*
+import android.content.Intent
+import android.net.Uri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,7 +26,8 @@ fun CarparkDetailsScreen(
     onStartParkingSession: () -> Unit,
     detailsViewModel: CarparkDetailsViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
-    sessionViewModel: ParkingSessionViewModel = hiltViewModel()
+    sessionViewModel: ParkingSessionViewModel = hiltViewModel(),
+    homeViewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by detailsViewModel.uiState.collectAsState()
     val carpark by detailsViewModel.carpark.collectAsState()
@@ -32,6 +35,7 @@ fun CarparkDetailsScreen(
     val userId = auth.currentUser?.userID ?: ""
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val homeUiState by homeViewModel.uiState.collectAsState()
 
     LaunchedEffect(userId, carparkId) {
         if (userId.isNotBlank() && carparkId.isNotBlank()) {
@@ -110,8 +114,22 @@ fun CarparkDetailsScreen(
 
             OutlinedButton(
                 onClick = {
-                    detailsViewModel.getDirectionsUrl()?.let { url ->
-                        // Hook: open CustomTabs or intent in your app shell
+                    val cp = carpark ?: return@OutlinedButton
+                    val originLat = homeUiState.userLatitude
+                    val originLng = homeUiState.userLongitude
+                    val destLat = cp.latitude
+                    val destLng = cp.longitude
+
+                    // Prefer Google Maps app. Fallback to a browser if not available.
+                    val mapsUrl = "https://www.google.com/maps/dir/?api=1&origin=$originLat,$originLng&destination=$destLat,$destLng&travelmode=driving"
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(mapsUrl)).apply {
+                        setPackage("com.google.android.apps.maps")
+                    }
+                    try {
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        // Fallback: open in any maps-capable browser/app
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(mapsUrl)))
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

@@ -30,7 +30,8 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // Avoid logging full bodies to prevent jank and log spam
+            level = HttpLoggingInterceptor.Level.BASIC
         }
 
         return OkHttpClient.Builder()
