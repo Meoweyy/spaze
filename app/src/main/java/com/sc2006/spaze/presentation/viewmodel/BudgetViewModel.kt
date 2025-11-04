@@ -35,12 +35,7 @@ class BudgetViewModel @Inject constructor(
         private const val CRITICAL_PERCENT = 100.0 // percent
     }
 
-    /**
-     * Start observing current-month budget flows and budgets list.
-     * Safe to call multiple times (it will cancel and re-launch collectors).
-     */
     fun loadBudget(userId: String) {
-        // Observe current month budget as Flow and update state
         budgetRepository.getCurrentMonthBudgetFlow(userId)
             .onEach { budget ->
                 _currentBudget.value = budget
@@ -54,8 +49,6 @@ class BudgetViewModel @Inject constructor(
                         totalSpending = budget?.currentMonthSpending ?: 0.0
                     )
                 }
-
-                // Check thresholds if budget exists
                 if (budget != null) {
                     viewModelScope.launch { checkBudgetThresholds(userId) }
                 }
@@ -66,15 +59,13 @@ class BudgetViewModel @Inject constructor(
             }
             .launchIn(viewModelScope)
 
-        // Observe all budgets/history
         budgetRepository.getAllBudgets(userId)
             .onEach { list -> _allBudgets.value = list }
-            .catch { /* ignore for list, non-critical */ }
+            .catch { /* ignore */ }
             .launchIn(viewModelScope)
     }
 
     fun loadAllBudgets(userId: String) {
-        // kept for explicit call if needed
         budgetRepository.getAllBudgets(userId)
             .onEach { list -> _allBudgets.value = list }
             .launchIn(viewModelScope)
@@ -98,12 +89,11 @@ class BudgetViewModel @Inject constructor(
             _uiState.update { it.copy(error = error) }
             return
         }
-
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             val result = budgetRepository.setMonthlyBudget(userId, amount)
             result.fold(
-                onSuccess = { budget ->
+                onSuccess = {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -125,13 +115,11 @@ class BudgetViewModel @Inject constructor(
             _uiState.update { it.copy(error = error) }
             return
         }
-
         viewModelScope.launch {
             val result = budgetRepository.addSpending(userId, amount)
             result.fold(
                 onSuccess = {
                     _uiState.update { it.copy(successMessage = "Added SGD ${"%.2f".format(amount)}") }
-                    // the flow observer will reflect the new spending automatically
                 },
                 onFailure = { err ->
                     if (err is CancellationException) return@fold
@@ -146,7 +134,6 @@ class BudgetViewModel @Inject constructor(
             _uiState.update { it.copy(error = error) }
             return
         }
-
         viewModelScope.launch {
             val result = budgetRepository.removeSpending(userId, amount)
             result.fold(
@@ -161,12 +148,38 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
+    // NEW: reset current spending for this month
+    fun resetCurrentSpending(userId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            val result = budgetRepository.resetCurrentSpending(userId)
+            result.fold(
+                onSuccess = {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            successMessage = "Current spending reset to SGD 0.00"
+                        )
+                    }
+                },
+                onFailure = { err ->
+                    if (err is CancellationException) return@fold
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = err.message ?: "Failed to reset spending"
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     private suspend fun checkBudgetThresholds(userId: String) {
         try {
-            // Check if notifications are enabled before showing warnings
             val notificationsEnabled = PreferencesDataStore.getNotificationsEnabled(context).first()
-            if (!notificationsEnabled) return // Skip if notifications disabled
-            
+            if (!notificationsEnabled) return
+
             if (budgetRepository.checkBudgetWarning(userId)) {
                 _uiState.update {
                     it.copy(
@@ -187,7 +200,7 @@ class BudgetViewModel @Inject constructor(
                 budgetRepository.markBudgetExceededAsSent(userId)
             }
         } catch (_: Exception) {
-            // ignore threshold check failures silently (non-critical)
+            // non-critical
         }
     }
 

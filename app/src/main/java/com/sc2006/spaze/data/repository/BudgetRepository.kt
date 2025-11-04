@@ -62,6 +62,17 @@ class BudgetRepository @Inject constructor(
         }
     }
 
+    // NEW: reset current spending to 0 for the current month
+    suspend fun resetCurrentSpending(userId: String): Result<Unit> {
+        return try {
+            val budget = getCurrentMonthBudget(userId) ?: throw Exception("Budget not set for current month")
+            budgetDao.resetSpending(budget.budgetID)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun checkBudgetWarning(userId: String): Boolean {
         val budget = getCurrentMonthBudget(userId) ?: return false
         return budget.shouldSendWarning()
@@ -85,7 +96,6 @@ class BudgetRepository @Inject constructor(
     fun getAllBudgets(userId: String): Flow<List<BudgetEntity>> = budgetDao.getAllBudgets(userId)
 
     private fun getCurrentMonth(): String {
-        // Use SimpleDateFormat for clarity
         val sdf = SimpleDateFormat("yyyy-MM", Locale.getDefault())
         return sdf.format(Date())
     }

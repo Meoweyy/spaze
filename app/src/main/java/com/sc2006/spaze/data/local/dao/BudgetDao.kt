@@ -34,14 +34,19 @@ interface BudgetDao {
     @Delete
     suspend fun deleteBudget(budget: BudgetEntity)
 
-    @Query("UPDATE budgets SET monthlyBudget = :amount WHERE budgetID = :budgetId")
-    suspend fun updateMonthlyBudget(budgetId: String, amount: Double)
+    @Query("UPDATE budgets SET monthlyBudget = :amount, lastUpdated = :now WHERE budgetID = :budgetId")
+    suspend fun updateMonthlyBudget(budgetId: String, amount: Double, now: Long = System.currentTimeMillis())
 
-    @Query("UPDATE budgets SET currentMonthSpending = currentMonthSpending + :amount WHERE budgetID = :budgetId")
-    suspend fun addSpending(budgetId: String, amount: Double)
+    @Query("UPDATE budgets SET currentMonthSpending = currentMonthSpending + :amount, lastUpdated = :now WHERE budgetID = :budgetId")
+    suspend fun addSpending(budgetId: String, amount: Double, now: Long = System.currentTimeMillis())
 
-    @Query("UPDATE budgets SET currentMonthSpending = CASE WHEN currentMonthSpending - :amount < 0 THEN 0 ELSE currentMonthSpending - :amount END WHERE budgetID = :budgetId")
-    suspend fun removeSpending(budgetId: String, amount: Double)
+    @Query("""
+        UPDATE budgets 
+        SET currentMonthSpending = CASE WHEN currentMonthSpending - :amount < 0 THEN 0 ELSE currentMonthSpending - :amount END,
+            lastUpdated = :now
+        WHERE budgetID = :budgetId
+    """)
+    suspend fun removeSpending(budgetId: String, amount: Double, now: Long = System.currentTimeMillis())
 
     @Query("UPDATE budgets SET hasWarningBeenSent = 1 WHERE budgetID = :budgetId")
     suspend fun markWarningAsSent(budgetId: String)
@@ -51,4 +56,15 @@ interface BudgetDao {
 
     @Query("DELETE FROM budgets WHERE userID = :userId")
     suspend fun deleteAllBudgets(userId: String)
+
+    // NEW: reset current month spending + clear warning flags
+    @Query("""
+        UPDATE budgets 
+        SET currentMonthSpending = 0.0, 
+            hasWarningBeenSent = 0, 
+            hasCriticalBeenSent = 0,
+            lastUpdated = :now
+        WHERE budgetID = :budgetId
+    """)
+    suspend fun resetSpending(budgetId: String, now: Long = System.currentTimeMillis())
 }

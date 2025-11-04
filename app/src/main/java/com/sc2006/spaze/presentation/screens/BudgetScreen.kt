@@ -10,26 +10,50 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sc2006.spaze.presentation.viewmodel.BudgetViewModel
-import java.util.*
+import com.sc2006.spaze.presentation.viewmodel.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetScreen(
-    viewModel: BudgetViewModel = hiltViewModel(),
-    userId: String = "user123", // TODO: replace with real auth user id
+    budgetViewModel: BudgetViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val currentBudget by viewModel.currentBudget.collectAsState()
+    val authState by authViewModel.uiState.collectAsState()
+    val userId = authState.currentUser?.userID
 
-    // Local UI state for "set budget" dialog
+    val uiState by budgetViewModel.uiState.collectAsState()
+    val currentBudget by budgetViewModel.currentBudget.collectAsState()
+
+    // Dialog states
     var showSetBudgetDialog by remember { mutableStateOf(false) }
+    var showResetConfirm by remember { mutableStateOf(false) }
     var draftBudgetText by remember { mutableStateOf("") }
 
-    // Load budget flows when this composable appears
+    // Snackbar
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Load budget data when the authenticated user changes
     LaunchedEffect(userId) {
-        viewModel.loadBudget(userId)
-        viewModel.loadAllBudgets(userId)
+        if (!userId.isNullOrBlank()) {
+            budgetViewModel.loadBudget(userId)
+            budgetViewModel.loadAllBudgets(userId)
+        }
+    }
+
+    // Show success messages
+    LaunchedEffect(uiState.successMessage) {
+        uiState.successMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            budgetViewModel.clearSuccessMessage()
+        }
+    }
+    // Show error messages
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            budgetViewModel.clearError()
+        }
     }
 
     Scaffold(
@@ -42,88 +66,148 @@ fun BudgetScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)
-            .padding(16.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            if (uiState.isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .align(Alignment.TopCenter)
+                )
+            }
 
-            currentBudget?.let { budget ->
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(text = "Monthly Budget", style = MaterialTheme.typography.titleMedium)
-                            Text(text = "$${"%.2f".format(budget.monthlyBudget)}", style = MaterialTheme.typography.headlineMedium)
+            when {
+                userId.isNullOrBlank() -> {
+                    // Not logged in
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text("Please log in to manage your budget.")
+                    }
+                }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                currentBudget == null -> {
+                    // No budget set
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text("No budget set")
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = {
+                            draftBudgetText = "100.0"
+                            showSetBudgetDialog = true
+                        }) {
+                            Text("Set Budget")
+                        }
+                    }
+                }
 
-                            Text(text = "Current Spending", style = MaterialTheme.typography.titleSmall)
-                            Text(text = "$${"%.2f".format(budget.currentMonthSpending)}", style = MaterialTheme.typography.titleLarge)
+                else -> {
+                    // Budget summary
+                    val budget = currentBudget!!
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "Monthly Budget",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    text = "SGD ${"%.2f".format(budget.monthlyBudget)}",
+                                    style = MaterialTheme.typography.headlineMedium
+                                )
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
 
-                            val progress = (uiState.usagePercentage.coerceIn(0.0, 100.0) / 100f).toFloat()
-                            LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
+                                Text(
+                                    text = "Current Spending",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    text = "SGD ${"%.2f".format(budget.currentMonthSpending)}",
+                                    style = MaterialTheme.typography.titleLarge
+                                )
 
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "Remaining: $${"%.2f".format(uiState.remainingBudget)}", style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.height(12.dp))
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                                val progress = (uiState.usagePercentage.coerceIn(0.0, 100.0) / 100f).toFloat()
+                                LinearProgressIndicator(
+                                    progress = progress,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
 
-                            if (uiState.usagePercentage >= 100.0) {
-                                Text(text = "❌ You've exceeded your budget!", color = MaterialTheme.colorScheme.error)
-                            } else if (uiState.usagePercentage >= 80.0) {
-                                Text(text = "⚠️ You're reaching your budget limit!", color = MaterialTheme.colorScheme.error)
-                            }
+                                Spacer(modifier = Modifier.height(8.dp))
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Remaining: SGD ${"%.2f".format(uiState.remainingBudget)}",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { showSetBudgetDialog = true }) {
-                                    Text("Edit Budget")
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                when {
+                                    uiState.usagePercentage >= 100.0 -> {
+                                        Text(
+                                            text = "❌ You've exceeded your budget!",
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                    uiState.usagePercentage >= 80.0 -> {
+                                        Text(
+                                            text = "⚠️ You're reaching your budget limit!",
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 }
-                                OutlinedButton(onClick = { viewModel.addSpending(userId, 5.0) }) {
-                                    // quick test button to add spending (replace with real input)
-                                    Text("Add SGD 5 (test)")
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Button(
+                                        onClick = { showSetBudgetDialog = true },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Edit Budget")
+                                    }
+                                    OutlinedButton(
+                                        onClick = { showResetConfirm = true },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Reset Current Spending")
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            } ?: run {
-                // No budget set view
-                Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text("No budget set")
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = {
-                        draftBudgetText = "100.0"
-                        showSetBudgetDialog = true
-                    }) {
-                        Text("Set Budget")
-                    }
-                }
-            }
-
-            // Show messages
-            uiState.successMessage?.let { msg ->
-                Snackbar(modifier = Modifier.align(Alignment.BottomCenter), action = {
-                    TextButton(onClick = { viewModel.clearSuccessMessage() }) { Text("OK") }
-                }) {
-                    Text(msg)
-                }
-            }
-
-            uiState.error?.let { err ->
-                Snackbar(modifier = Modifier.align(Alignment.BottomCenter)) {
-                    Text(err)
-                }
             }
         }
     }
 
-    // Simple dialog to set monthly budget (simple display + edit as requested)
-    if (showSetBudgetDialog) {
+    // Dialog: Set Monthly Budget
+    if (showSetBudgetDialog && !userId.isNullOrBlank()) {
         AlertDialog(
             onDismissRequest = { showSetBudgetDialog = false },
             title = { Text("Set Monthly Budget (SGD)") },
@@ -142,10 +226,9 @@ fun BudgetScreen(
                 TextButton(onClick = {
                     val amount = draftBudgetText.toDoubleOrNull()
                     if (amount != null) {
-                        viewModel.setMonthlyBudget(userId, amount)
+                        budgetViewModel.setMonthlyBudget(userId, amount)
                         showSetBudgetDialog = false
                     } else {
-                        // simple local validation: keep dialog open or show UI error
                         draftBudgetText = ""
                     }
                 }) {
@@ -153,7 +236,31 @@ fun BudgetScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showSetBudgetDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showSetBudgetDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Dialog: Reset Spending
+    if (showResetConfirm && !userId.isNullOrBlank()) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirm = false },
+            title = { Text("Reset Current Spending") },
+            text = { Text("Are you sure you want to reset your current month’s spending to SGD 0.00?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    budgetViewModel.resetCurrentSpending(userId)
+                    showResetConfirm = false
+                }) {
+                    Text("Reset")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirm = false }) {
+                    Text("Cancel")
+                }
             }
         )
     }
